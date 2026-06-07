@@ -60,104 +60,47 @@ CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请�
 - 只返回 JSON，不要有其他文字"""
 
 
-def _strip_toc(text: str) -> str:
-    """去掉书籍开头的目录部分，避免目录条目被误识别为章节"""
-    lines = text.split('\n')
-    # 在前 200 行内查找"目录"标记
-    for i in range(min(200, len(lines))):
-        line = lines[i].strip()
-        if line in ('目录', '目  录', '目 录', '目    录') or line.startswith('目录') or line == '目錄':
-            # 找到目录结束位置（第一个"第X章"或正文标记）
-            for j in range(i + 3, min(len(lines), i + 500)):
-                l = lines[j].strip()
-                if re.match(r'^第[零一二三四五六七八九十百千\d]+[章节]', l):
-                    # 返回去除目录后的文本
-                    return '\n'.join(lines[:i] + [''] + lines[j:])
-            # 找不到明确结束标记，跳过50行
-            return '\n'.join(lines[:i] + [''] + lines[i + 50:])
-    return text
-
-
 def _regex_find_chapters(text: str) -> list[dict]:
     """用正则扫描全书，找到所有可能的章节开头（不依赖 AI）"""
-    # 先去掉目录
-    clean_text = _strip_toc(text)
-
-    # 强模式：几乎肯定是章节标记
-    strong_patterns = [
-        (r'^第[零一二三四五六七八九十百千\d]+[章节回部篇]', '第X章'),  # 第X章 开头
-        (r'\n第[零一二三四五六七八九十百千\d]+[章节回部篇]', '第X章'),  # 第X章 行中
-    ]
-
-    # 弱模式：可能是章节标记，需要更多验证
-    weak_patterns = [
-        (r'(?:Chapter|CHAPTER|Part|PART)\s*\d+', 'Chapter'),
-        (r'\n[一二三四五六七八九十]{1,3}[、，,]\s*\S', '中文序号'),
+    patterns = [
+        r'第[零一二三四五六七八九十百千\d]+[章节回部篇]',  # 第X章/第X节
+        r'(?:Chapter|CHAPTER|Part|PART)\s*\d+',  # Chapter 1, Part 1
+        r'[一二三四五六七八九十]{1,3}[、，,]',  # 一、二、三、
+        r'^\d+[\.\、\)]\s',  # 1. 2. 3.
     ]
 
     findings = []
-
-    # 先收集强模式
-    for pattern, ptype in strong_patterns:
-        for m in re.finditer(pattern, clean_text, re.MULTILINE):
-            pos = m.start()
-            # 跳过开头的零宽匹配
-            if pattern.startswith('^') and pos > 0 and clean_text[pos - 1] != '\n':
-                continue
-            if not pattern.startswith('^'):
-                pos += 1  # 跳过 \n
-            end = min(pos + 60, len(clean_text))
-            snippet = clean_text[pos:end]
+    for pattern in patterns:
+        for m in re.finditer(pattern, text, re.MULTILINE):
+            # 取匹配位置前10字符到后40字符作为章节标题
+            start = m.start()
+            end = min(start + 50, len(text))
+            # 向后找到换行或句号作为标题结束
+            snippet = text[start:end]
             newline_pos = snippet.find('\n')
-            title = snippet[:newline_pos].strip() if newline_pos > 0 else snippet[:40].strip()
-            if len(title) >= 2:
-                findings.append({"pos": pos, "chapter_name": title, "start_marker": title[:20], "strength": "strong"})
+            period_pos = snippet.find('。')
+            cut = min(newline_pos if newline_pos > 0 else len(snippet),
+                     period_pos if period_pos > 0 else len(snippet),
+                     40)
+            title = text[start:start + cut].strip()
+            findings.append({
+                "pos": start,
+                "chapter_name": title,
+                "start_marker": title[:20],
+            })
 
-    # 弱模式：只在不与强模式冲突时添加
-    strong_positions = {f["pos"] for f in findings}
-    for pattern, ptype in weak_patterns:
-        for m in re.finditer(pattern, clean_text, re.MULTILINE):
-            pos = m.start()
-            if pattern.startswith('\n'):
-                pos += 1
-            # 跳过已由强模式覆盖的位置（100 字符范围内）
-            if any(abs(pos - sp) < 100 for sp in strong_positions):
-                continue
-            end = min(pos + 60, len(clean_text))
-            snippet = clean_text[pos:end]
-            newline_pos = snippet.find('\n')
-            title = snippet[:newline_pos].strip() if newline_pos > 0 else snippet[:40].strip()
-            # 弱模式需要更严格验证：标题不能太短，且前后要有足够内容
-            if len(title) >= 4:
-                findings.append({"pos": pos, "chapter_name": title, "start_marker": title[:20], "strength": "weak"})
-
-    # 按位置排序
+    # 按位置排序并去重（同一位置只保留第一个）
     findings.sort(key=lambda x: x["pos"])
+    deduped = []
+    seen_positions = set()
+    for f in findings:
+        # 同一位置附近10字符算重复
+        key = f["pos"] // 10
+        if key not in seen_positions:
+            seen_positions.add(key)
+            deduped.append(f)
 
-    # 去重：同一位置附近 50 字符内保留优先级最高的（strong > weak）
-    merged = []
-    i = 0
-    while i < len(findings):
-        cur = findings[i]
-        j = i + 1
-        while j < len(findings) and findings[j]["pos"] - cur["pos"] < 50:
-            if findings[j]["strength"] == "strong" and cur["strength"] == "weak":
-                cur = findings[j]  # 用 strong 替代 weak
-            j += 1
-        merged.append(cur)
-        i = j
-
-    # 过滤：章节间至少间隔 200 字符（过滤目录/列表中的密集项）
-    filtered = []
-    for f in merged:
-        if not filtered or f["pos"] - filtered[-1]["pos"] >= 200:
-            filtered.append(f)
-        else:
-            # 保留强度更高的
-            if f["strength"] == "strong" and filtered[-1]["strength"] == "weak":
-                filtered[-1] = f
-
-    return filtered
+    return deduped
 
 
 async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
@@ -183,25 +126,20 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
         if len(regex_chapters) > 80:
             extra_hint = f"\n（全书共发现 {len(regex_chapters)} 个潜在章节标记，以上仅列出前 80 个。请推断剩余章节的规律并包含在结果中。）"
 
-        detect_prompt = f"""你是书籍结构分析专家。程序已预扫描发现以下潜在章节标记：
+        detect_prompt = f"""请识别以下书籍的章节结构。
 
+正则预扫描已发现以下潜在章节标记：
 {candidate_list}{extra_hint}
 
-请完成以下工作：
-1. 过滤掉非章节的误匹配（如列表序号、目录条目、引用编号等）
-2. 将正确的标记整理为完整章节列表
-3. 每个章节必须有 chapter_name（简洁标题）和 start_marker（该章节在原文中的开头特征文字，20字内）
-
-规则：
-- "第X章""第X节"等是主要的章节标记，优先保留
-- 中文序号"一、二、"可能是一级章节也可能是小节，根据内容判断
-- 相邻且内容相关的标记应合并，不要拆分
-- 目录页中的序号应忽略
-- 按原文顺序排列
-- 只返回 JSON，格式：{{"book_title":"...", "chapters":[{{"chapter_name":"...", "start_marker":"..."}}]}}"""
+请根据这些标记和文本规律，提取出完整的章节列表。
+要求：
+- 每个章节需要 chapter_name（完整标题）和 start_marker（可在原文唯一定位的开头文字）
+- 合并相邻的重复标记，去除非章节的误匹配
+- 按原文出现顺序排列
+- 只返回 JSON，不要有其他文字"""
 
         # 取全书的关键片段：开头的目录 + 散点采样
-        scan_len = min(60000, len(text))
+        scan_len = min(40000, len(text))
         scan_text = text[:scan_len]
         if len(text) > scan_len:
             # 额外采样几段中间和后部的内容帮助 AI 理解章节规律
@@ -228,7 +166,7 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
                 {"role": "user", "content": detect_prompt},
             ],
             "temperature": 0.1,
-            "max_tokens": 16384,
+            "max_tokens": 8192,
             "response_format": {"type": "json_object"},
         },
         timeout=180.0,
