@@ -318,6 +318,11 @@ def _classify_error(error: str) -> str:
 
 # ===== 查询 API =====
 
+def reset_all():
+    """重置所有统计数据"""
+    _save(_default())
+
+
 def get_stats() -> dict:
     data = _load()
     completed = [t for t in data["recent_tasks"] if t["status"] == "completed"]

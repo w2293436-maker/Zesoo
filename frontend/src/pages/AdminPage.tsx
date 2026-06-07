@@ -50,6 +50,20 @@ export default function AdminPage({ onBack }: AdminPageProps) {
   const [pwd, setPwd] = useState("");
   const [taskFilter, setTaskFilter] = useState("");
   const [exporting, setExporting] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (!confirm("确定要重置所有统计数据吗？此操作不可撤销。")) return;
+    setResetting(true);
+    try {
+      const r = await fetch(`/api/admin/reset?password=${encodeURIComponent(pwd)}`, { method: "POST" });
+      if (r.ok) {
+        // 重置后重新加载数据
+        await loadData(pwd);
+      }
+    } catch { /* ignore */ }
+    setResetting(false);
+  };
 
   const loadData = async (password: string) => {
     setPwd(password);
@@ -128,8 +142,12 @@ export default function AdminPage({ onBack }: AdminPageProps) {
           </button>
           <h1 className="text-sm font-semibold text-gray-800">择书Zesoo 数据看板</h1>
         </div>
-        {/* 导出按钮 */}
+        {/* 导出 + 重置 按钮 */}
         <div className="flex gap-2">
+          <button onClick={handleReset} disabled={resetting}
+            className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 rounded-lg text-xs text-red-500 hover:bg-red-50 disabled:opacity-50">
+            {resetting ? "重置中..." : "重置数据"}
+          </button>
           <button onClick={() => handleExport("json")} disabled={exporting === "json"}
             className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50">
             {exporting === "json" ? "导出中..." : (

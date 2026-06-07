@@ -383,6 +383,18 @@ async def get_admin_stats(password: str = Query("")):
         raise HTTPException(status_code=500, detail=f"Stats error: {e}")
 
 
+@app.post("/api/admin/reset")
+async def reset_stats(password: str = Query(...)):
+    """重置统计数据（需密码）"""
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="密码错误")
+    try:
+        stats_module.reset_all()
+        return {"ok": True, "message": "数据已重置"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重置失败: {e}")
+
+
 @app.get("/api/admin/recent")
 async def get_recent_tasks(password: str = Query(...)):
     """获取最近任务列表（需密码）"""
