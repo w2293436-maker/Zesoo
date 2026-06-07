@@ -21,14 +21,12 @@ export default function App() {
     setError("");
     try {
       const result = await uploadFile(file);
-      setTaskInfo({
-        taskId: result.task_id,
-        filename: result.filename,
-      });
+      setTaskInfo({ taskId: result.task_id, filename: result.filename });
       setPage("progress");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "上传失败，请重试";
       setError(message);
+      throw err; // 让 UploadPage 感知失败以重置 loading
     }
   };
 

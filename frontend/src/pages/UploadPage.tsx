@@ -4,7 +4,7 @@ import Footer from "../components/Footer";
 import LegalPage from "./LegalPage";
 
 interface UploadPageProps {
-  onStart: (file: File) => void;
+  onStart: (file: File) => Promise<void>;
   onGoAdmin?: () => void;
 }
 
@@ -17,8 +17,14 @@ export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
   const handleStart = async () => {
     if (!file) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-    onStart(file);
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      await onStart(file);
+    } catch {
+      // 上传失败，父组件已处理错误提示
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (showLegal) {
