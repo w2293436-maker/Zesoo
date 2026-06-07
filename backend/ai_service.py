@@ -17,6 +17,21 @@ def estimate_tokens(text: str) -> int:
     return max(1, int(len(text) / 2.5))
 
 
+def _safe_json_parse(content: str) -> dict:
+    """安全解析 JSON，处理控制字符和 markdown 包裹"""
+    # 清理 markdown 代码块
+    if content.startswith("```"):
+        lines = content.split("\n")
+        content = "\n".join(lines[1:])
+        if content.endswith("```"):
+            content = content[:-3]
+    content = content.strip()
+    # 移除 JSON 字符串中的非法控制字符
+    import re
+    content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', content)
+    return json.loads(content)
+
+
 # ==================== 章节检测 ====================
 
 CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请扫描以下书籍文本，识别出书中所有的"章节"或"小节"。
@@ -75,7 +90,7 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
         content = content.split("\n", 1)[1]
         if content.endswith("```"):
             content = content[:-3]
-    return json.loads(content.strip())
+    return _safe_json_parse(content)
 
 
 def split_text_by_chapters(text: str, chapters: list[dict]) -> list[dict]:
@@ -254,13 +269,7 @@ async def analyze_chapter(
     )
     response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
-
-    if content.startswith("```"):
-        content = content.split("\n", 1)[1]
-        if content.endswith("```"):
-            content = content[:-3]
-
-    result = json.loads(content.strip())
+    result = _safe_json_parse(content)
 
     # 加上章节名
     result["chapter_name"] = chapter_name
