@@ -1,22 +1,22 @@
 {
   "total_visits": 0,
-  "total_uploads": 12,
-  "completed_analyses": 9,
+  "total_uploads": 13,
+  "completed_analyses": 10,
   "failed_analyses": 1,
   "total_exports": 0,
-  "total_chars_processed": 21492,
-  "total_tokens_used": 8593,
-  "total_processing_time_seconds": 248.89999999999998,
+  "total_chars_processed": 39598,
+  "total_tokens_used": 15835,
+  "total_processing_time_seconds": 290.4,
   "total_ocr_pages": 0,
   "size_distribution": {
     "small": 9,
-    "medium": 0,
+    "medium": 1,
     "large": 1
   },
   "file_types": {
     "pdf": 3,
     "txt": 4,
-    "docx": 5
+    "docx": 6
   },
   "failure_reasons": {
     "其他错误": 1
@@ -35,14 +35,31 @@
   "daily": {
     "2026-06-07": {
       "visits": 0,
-      "uploads": 12,
-      "completed": 9,
-      "tokens": 8593,
+      "uploads": 13,
+      "completed": 10,
+      "tokens": 15835,
       "exports": 0,
       "fails": 1
     }
   },
   "recent_tasks": [
+    {
+      "task_id": "c5c4a09a9dec",
+      "filename": "《校园星创文创生活服务工作室创业计划书》读书笔记_2026年06月07日.docx",
+      "chars": 18106,
+      "tokens_est": 7242,
+      "start_time": 1780814769.2760613,
+      "finish_time": 1780814810.7479472,
+      "duration_seconds": 41.5,
+      "status": "completed",
+      "chapters": 13,
+      "error": null,
+      "phase_times": {
+        "parse": 0.0,
+        "detect": 7.4,
+        "analyze": 41.5
+      }
+    },
     {
       "task_id": "c47ecdead4a3",
       "filename": "202407140332王硕创业计划书(1).docx",
@@ -470,6 +487,52 @@
           "duration_seconds": 5.9,
           "status": "completed",
           "chapters": 1,
+          "error": null,
+          "phase_times": {}
+        }
+      ]
+    },
+    "115348d12203": {
+      "fingerprint": "115348d12203",
+      "first_seen": 1780814768.8966866,
+      "last_seen": 1780814769.2760613,
+      "visits": 0,
+      "uploads": 1,
+      "completed": 1,
+      "failed": 0,
+      "exports": 0,
+      "tokens_used": 7242,
+      "chars_processed": 18106,
+      "total_time_seconds": 41.5,
+      "device": "pc",
+      "ip_masked": "127.0.*.*",
+      "file_types": {
+        "pdf": 0,
+        "txt": 0,
+        "docx": 1
+      },
+      "size_distribution": {
+        "small": 0,
+        "medium": 1,
+        "large": 0
+      },
+      "failure_reasons": {},
+      "phase_times": {
+        "parse": 0.0,
+        "detect": 7.4,
+        "analyze": 41.5
+      },
+      "tasks": [
+        {
+          "task_id": "c5c4a09a9dec",
+          "filename": "《校园星创文创生活服务工作室创业计划书》读书笔记_2026年06月07日.docx",
+          "chars": 18106,
+          "tokens_est": 7242,
+          "start_time": 1780814769.2760613,
+          "finish_time": null,
+          "duration_seconds": 41.5,
+          "status": "completed",
+          "chapters": 13,
           "error": null,
           "phase_times": {}
         }

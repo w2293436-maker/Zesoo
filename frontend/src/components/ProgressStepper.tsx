@@ -37,8 +37,6 @@ export default function ProgressStepper({ progress, step, detail }: ProgressStep
         {STEPS.map((s, i) => {
           const isDone = i < currentStepIndex;
           const isCurrent = i === currentStepIndex;
-          const isPending = i > currentStepIndex;
-
           return (
             <div
               key={s.key}
