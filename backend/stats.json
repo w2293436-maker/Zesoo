@@ -1,0 +1,110 @@
+{
+  "total_visits": 0,
+  "total_uploads": 2,
+  "completed_analyses": 0,
+  "failed_analyses": 0,
+  "total_exports": 0,
+  "total_chars_processed": 0,
+  "total_tokens_used": 0,
+  "total_processing_time_seconds": 0,
+  "total_ocr_pages": 0,
+  "size_distribution": {
+    "small": 0,
+    "medium": 0,
+    "large": 0
+  },
+  "file_types": {
+    "pdf": 2,
+    "txt": 0,
+    "docx": 0
+  },
+  "failure_reasons": {},
+  "phase_time": {
+    "parse": 0,
+    "detect": 0,
+    "analyze": 0,
+    "export": 0
+  },
+  "devices": {
+    "pc": 0,
+    "mobile": 0,
+    "tablet": 0
+  },
+  "daily": {
+    "2026-06-07": {
+      "visits": 0,
+      "uploads": 2,
+      "completed": 0,
+      "tokens": 0,
+      "exports": 0,
+      "fails": 0
+    }
+  },
+  "recent_tasks": [],
+  "users": {
+    "b173fa7172e3": {
+      "fingerprint": "b173fa7172e3",
+      "first_seen": 1780805768.4829195,
+      "last_seen": 1780805768.4829195,
+      "visits": 0,
+      "uploads": 1,
+      "completed": 0,
+      "failed": 0,
+      "exports": 0,
+      "tokens_used": 0,
+      "chars_processed": 0,
+      "total_time_seconds": 0,
+      "device": "pc",
+      "ip_masked": "127.0.*.*",
+      "file_types": {
+        "pdf": 1,
+        "txt": 0,
+        "docx": 0
+      },
+      "size_distribution": {
+        "small": 0,
+        "medium": 0,
+        "large": 0
+      },
+      "failure_reasons": {},
+      "phase_times": {
+        "parse": 0,
+        "detect": 0,
+        "analyze": 0
+      },
+      "tasks": []
+    },
+    "ea687534a507": {
+      "fingerprint": "ea687534a507",
+      "first_seen": 1780805780.6829097,
+      "last_seen": 1780805780.6829097,
+      "visits": 0,
+      "uploads": 1,
+      "completed": 0,
+      "failed": 0,
+      "exports": 0,
+      "tokens_used": 0,
+      "chars_processed": 0,
+      "total_time_seconds": 0,
+      "device": "pc",
+      "ip_masked": "127.0.*.*",
+      "file_types": {
+        "pdf": 1,
+        "txt": 0,
+        "docx": 0
+      },
+      "size_distribution": {
+        "small": 0,
+        "medium": 0,
+        "large": 0
+      },
+      "failure_reasons": {},
+      "phase_times": {
+        "parse": 0,
+        "detect": 0,
+        "analyze": 0
+      },
+      "tasks": []
+    }
+  }
+}
