@@ -14,14 +14,17 @@ export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
   const [agreed, setAgreed] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
+  const [uploadError, setUploadError] = useState("");
+
   const handleStart = async () => {
     if (!file) return;
     setLoading(true);
+    setUploadError("");
     try {
       await new Promise((r) => setTimeout(r, 300));
       await onStart(file);
-    } catch {
-      // 上传失败，父组件已处理错误提示
+    } catch (e: any) {
+      setUploadError(e?.message || "上传失败，请检查网络后重试");
     } finally {
       setLoading(false);
     }
@@ -136,6 +139,10 @@ export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
             </>
           )}
         </button>
+
+        {uploadError && (
+          <p className="text-xs text-red-500 text-center mt-3">{uploadError}</p>
+        )}
       </div>
 
       <p className="mt-4 sm:mt-6 text-xs text-gray-300">

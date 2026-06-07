@@ -5,6 +5,20 @@
 // 开发环境用 Vite proxy，生产环境用环境变量或同域
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
+// 请求超时（毫秒）
+const TIMEOUT = 60000;
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = TIMEOUT): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface UploadResult {
   task_id: string;
   filename: string;
@@ -48,10 +62,10 @@ export async function uploadFile(file: File): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const resp = await fetch(`${API_BASE}/upload`, {
+  const resp = await fetchWithTimeout(`${API_BASE}/upload`, {
     method: "POST",
     body: formData,
-  });
+  }, 120000);  // 上传给 2 分钟超时
 
   if (!resp.ok) {
     const err = await resp.json();
@@ -95,7 +109,7 @@ export function subscribeProgress(
 }
 
 export async function getReport(taskId: string): Promise<ReportData> {
-  const resp = await fetch(`${API_BASE}/report/${taskId}`);
+  const resp = await fetchWithTimeout(`${API_BASE}/report/${taskId}`);
 
   if (!resp.ok) {
     const err = await resp.json();
