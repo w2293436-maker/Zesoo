@@ -210,6 +210,17 @@ async def process_book(task_id: str, file_path: str, filename: str):
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     """上传书籍文件，返回任务 ID"""
+    import traceback
+    try:
+        return await _upload_impl(file, request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+
+
+async def _upload_impl(file: UploadFile, request):
     # 1. 检查文件扩展名
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
