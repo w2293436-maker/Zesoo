@@ -428,11 +428,11 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
             <MiniDist title="❌ 失败原因" data={user.failure_reasons} colors={{ "OCR识别失败": "#ef4444", "超时": "#f59e0b", "API Key错误": "#dc2626", "文件解析失败": "#8b5cf6", "章节切分失败": "#06b6d4", "其他错误": "#6b7280" }} />
           )}
 
-          {Object.values(user.phase_times).some(v => v > 0) && (
+          {Object.values(user.phase_times).reduce((a,b) => a+b, 0) > 0 && (
             <div>
               <h3 className="text-xs font-bold text-gray-500 mb-2">⏱ 阶段耗时</h3>
               <div className="flex gap-2 text-xs">
-                {Object.entries(user.phase_times).filter(([, v]) => v > 0).map(([k, v]) => (
+                {Object.entries(user.phase_times).filter(([, v]) => v !== 0).map(([k, v]) => (
                   <span key={k} className="px-2 py-1 bg-gray-50 rounded-lg text-gray-600">
                     {k === "parse" ? "解析" : k === "detect" ? "识别" : "分析"}: {v.toFixed(0)}s
                   </span>
@@ -456,7 +456,6 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
               </div>
             </div>
           )}
-        </div>
         </div>
       </div>
     </div>
