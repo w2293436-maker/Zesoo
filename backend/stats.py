@@ -84,10 +84,15 @@ def _get_or_create_user(data: dict, fp: str, ip: str, ua: str) -> dict:
 def _mask_ip(ip: str) -> str:
     if not ip or ip == "unknown":
         return "***"
+    # IPv4: 192.168.x.x
     parts = ip.split(".")
     if len(parts) == 4:
         return f"{parts[0]}.{parts[1]}.*.*"
-    return ip[:len(ip) // 2] + "***"
+    # IPv6: 2001:db8:... → 2001:db8:****
+    if ":" in ip:
+        parts = ip.split(":")
+        return ":".join(parts[:2]) + ":****"
+    return ip[:max(len(ip) // 2, 4)] + "***"
 
 
 # ===== 公开 API =====

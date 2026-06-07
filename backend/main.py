@@ -61,8 +61,11 @@ async def track_visits(request, call_next):
     # 只统计页面访问，跳过 API 和静态资源
     path = request.url.path
     if not path.startswith("/api/") and not path.startswith("/assets/") and path.count(".") == 0:
-        ip, ua = get_client_info(request)
-        stats_module.record_visit(ip, ua)
+        try:
+            ip, ua = get_client_info(request)
+            stats_module.record_visit(ip, ua)
+        except Exception:
+            pass  # 统计失败不影响主流程
     response = await call_next(request)
     return response
 
@@ -93,9 +96,11 @@ async def process_book(task_id: str, file_path: str, filename: str):
         text = await parse_file(file_path)
         text_stats = get_text_stats(text)
         tasks[task_id]["text_stats"] = text_stats
-        stats_module.record_task_start(ip, ua, task_id, filename, text_stats["chars"])
+        try: stats_module.record_task_start(ip, ua, task_id, filename, text_stats["chars"])
+        except Exception: pass
         set_progress(task_id, 10, "parse", f"解析完成，共 {text_stats['chars']} 字符")
-        stats_module.record_phase_time(task_id, "parse")
+        try: stats_module.record_phase_time(task_id, "parse")
+        except Exception: pass
 
         # ---- 阶段 2：AI 识别章节结构 ----
         set_progress(task_id, 15, "detect", "AI 正在识别书籍章节结构...")
@@ -113,7 +118,8 @@ async def process_book(task_id: str, file_path: str, filename: str):
 
         tasks[task_id]["total_chapters"] = len(raw_chapters)
         set_progress(task_id, 20, "split", f"识别到 {len(raw_chapters)} 个章节，正在切分...")
-        stats_module.record_phase_time(task_id, "detect")
+        try: stats_module.record_phase_time(task_id, "detect")
+        except Exception: pass
 
         # ---- 阶段 3：按章节切分文本 ----
         chapter_blocks = split_text_by_chapters(text, raw_chapters)
@@ -173,7 +179,8 @@ async def process_book(task_id: str, file_path: str, filename: str):
 
         # ---- 阶段 5：组装最终报告 ----
         set_progress(task_id, 85, "done", "正在组装报告...")
-        stats_module.record_phase_time(task_id, "analyze")
+        try: stats_module.record_phase_time(task_id, "analyze")
+        except Exception: pass
 
         final_report = {
             "book_title": book_title,
@@ -245,8 +252,11 @@ async def upload_file(file: UploadFile = File(...)):
         "ua": ua,
     }
 
-    # 6. 记录统计
-    stats_module.record_upload(ip, ua, file.filename)
+    # 6. 记录统计（失败不影响上传）
+    try:
+        stats_module.record_upload(ip, ua, file.filename)
+    except Exception as e:
+        print(f"[STATS] record_upload error: {e}")
 
     # 7. 启动后台处理
     asyncio.create_task(process_book(task_id, file_path, file.filename))
