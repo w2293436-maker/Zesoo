@@ -242,8 +242,8 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
 
     try:
         stats_module.record_upload(ip, ua, file.filename)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[STATS] upload record failed: {e}")
 
     asyncio.create_task(process_book(task_id, file_path, file.filename))
     return {"task_id": task_id, "filename": file.filename, "size_mb": round(size_mb, 2), "status": "uploaded"}
