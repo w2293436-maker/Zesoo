@@ -128,6 +128,32 @@ def generate_docx(report: dict, output_dir: str) -> str:
         if i < len(chapters):
             doc.add_page_break()
 
+    # ===== 免责声明页 =====
+    doc.add_page_break()
+    doc.add_heading("免责声明", level=1)
+
+    disclaimers = [
+        ("AI 生成内容声明",
+         "本报告由择书Zesoo基于人工智能技术自动生成，所有内容（包括章节总结、核心观点、"
+         "金句摘录、方法论、启示建议等）仅供参考和学习交流之用，不构成任何形式的专业建议、"
+         "指导或承诺。AI 生成的内容可能存在不准确、不完整或与原文存在偏差的情况，"
+         "用户应自行判断和核实报告内容的准确性和适用性。"),
+        ("知识产权声明",
+         "用户上传的书籍文件及其内容的知识产权归原作者及权利人所有。本工具仅提供文本分析"
+         "和内容提炼服务，不对上传文件的内容主张任何权利。本报告仅供用户个人学习使用，"
+         "用户不得将本报告用于商业目的，亦不得以任何形式公开发布或传播涉及侵权的内容。"),
+        ("责任限制",
+         "本工具按"现状"提供，不提供任何明示或默示的保证。在任何情况下，本工具的开发者和"
+         "运营方均不对因使用或无法使用本工具所产生的任何直接、间接、附带、特殊或后果性"
+         "损失承担责任，包括但不限于数据丢失、业务中断、信息不准确导致的决策失误等。"
+         "使用本工具的风险由用户自行承担。"),
+    ]
+
+    for title, content in disclaimers:
+        doc.add_heading(title, level=2)
+        p = doc.add_paragraph(content)
+        p.paragraph_format.space_after = Pt(12)
+
     # ===== 页脚 =====
     doc.add_paragraph()
     doc.add_paragraph("—" * 40)

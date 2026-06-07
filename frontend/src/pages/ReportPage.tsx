@@ -3,6 +3,8 @@ import { getReport, getExportUrl } from "../services/api";
 import type { ReportData } from "../services/api";
 import ReportSidebar from "../components/ReportSidebar";
 import ReportContent from "../components/ReportContent";
+import Footer from "../components/Footer";
+import LegalPage from "./LegalPage";
 
 interface ReportPageProps {
   taskId: string;
@@ -16,6 +18,7 @@ export default function ReportPage({ taskId, onRestart }: ReportPageProps) {
   const [activeChapter, setActiveChapter] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
 
   useEffect(() => {
     getReport(taskId)
@@ -73,6 +76,10 @@ export default function ReportPage({ taskId, onRestart }: ReportPageProps) {
   const { report } = reportData;
   const chapters = report.chapters || [];
   const currentChapter = chapters[activeChapter];
+
+  if (showLegal) {
+    return <LegalPage onBack={() => setShowLegal(false)} />;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -170,6 +177,7 @@ export default function ReportPage({ taskId, onRestart }: ReportPageProps) {
           </div>
         )}
       </div>
+      <Footer onLegalClick={() => setShowLegal(true)} compact />
     </div>
   );
 }

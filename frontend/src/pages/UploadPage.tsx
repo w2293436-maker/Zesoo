@@ -1,5 +1,7 @@
 import { useState } from "react";
 import FileDropZone from "../components/FileDropZone";
+import Footer from "../components/Footer";
+import LegalPage from "./LegalPage";
 
 interface UploadPageProps {
   onStart: (file: File) => void;
@@ -8,6 +10,8 @@ interface UploadPageProps {
 export default function UploadPage({ onStart }: UploadPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
 
   const handleStart = async () => {
     if (!file) return;
@@ -15,6 +19,10 @@ export default function UploadPage({ onStart }: UploadPageProps) {
     await new Promise((r) => setTimeout(r, 300));
     onStart(file);
   };
+
+  if (showLegal) {
+    return <LegalPage onBack={() => setShowLegal(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col items-center justify-center px-4 py-8">
@@ -59,14 +67,45 @@ export default function UploadPage({ onStart }: UploadPageProps) {
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-8">
         <FileDropZone file={file} onFileSelect={setFile} />
 
+        {/* 同意条款勾选框 */}
+        {file && (
+          <label className="flex items-start gap-2 mt-4 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-blue-500 focus:ring-blue-400 flex-shrink-0"
+            />
+            <span className="text-xs text-gray-500 group-hover:text-gray-600 leading-relaxed">
+              我已阅读并同意
+              <button
+                type="button"
+                onClick={() => setShowLegal(true)}
+                className="text-blue-500 hover:text-blue-600 underline mx-0.5"
+              >
+                免责声明
+              </button>
+              和
+              <button
+                type="button"
+                onClick={() => setShowLegal(true)}
+                className="text-blue-500 hover:text-blue-600 underline mx-0.5"
+              >
+                用户协议
+              </button>
+              ，AI 生成内容仅供参考，不构成专业建议
+            </span>
+          </label>
+        )}
+
         <button
           onClick={handleStart}
-          disabled={!file || loading}
+          disabled={!file || !agreed || loading}
           className={`
             w-full mt-4 sm:mt-6 py-3 rounded-xl text-sm font-semibold
             transition-all duration-200 flex items-center justify-center gap-2
             ${
-              file && !loading
+              file && agreed && !loading
                 ? "bg-blue-500 text-white hover:bg-blue-600 active:scale-[0.98] shadow-sm shadow-blue-200"
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }
@@ -95,6 +134,8 @@ export default function UploadPage({ onStart }: UploadPageProps) {
       <p className="mt-4 sm:mt-6 text-xs text-gray-300">
         支持 PDF · TXT · DOCX 格式，最大 50MB
       </p>
+
+      <Footer onLegalClick={() => setShowLegal(true)} compact />
     </div>
   );
 }
