@@ -1,5 +1,5 @@
 """
-FastAPI 主入口 — 书籍精读报告生成器后端
+FastAPI 主入口 — 择书Zesoo 后端
 启动方式: uvicorn main:app --reload --port 8000
 """
 
