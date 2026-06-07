@@ -5,7 +5,9 @@ import os
 import time
 from datetime import datetime, timezone, timedelta
 
-STATS_FILE = os.path.join(os.path.dirname(__file__), "stats.json")
+# Railway Volume 持久化目录，不存在则回退到本地
+DATA_DIR = "/data" if os.path.exists("/data") else os.path.dirname(__file__)
+STATS_FILE = os.path.join(DATA_DIR, "stats.json")
 tz = timezone(timedelta(hours=8))
 
 
