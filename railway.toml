@@ -1,5 +1,5 @@
 [build]
-rootDirectory = "backend"
+rootDirectory = "."
 
 [deploy]
-startCommand = "python main.py"
+startCommand = "bash start.sh"
