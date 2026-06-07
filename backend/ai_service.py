@@ -18,7 +18,7 @@ def estimate_tokens(text: str) -> int:
 
 
 def _safe_json_parse(content: str) -> dict:
-    """安全解析 JSON，处理控制字符和 markdown 包裹"""
+    """安全解析 JSON，处理控制字符和 markdown 包裹，确保返回 dict"""
     # 清理 markdown 代码块
     if content.startswith("```"):
         lines = content.split("\n")
@@ -28,7 +28,11 @@ def _safe_json_parse(content: str) -> dict:
     content = content.strip()
     # 移除 JSON 字符串中的非法控制字符
     content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', content)
-    return json.loads(content)
+    result = json.loads(content)
+    # 如果 AI 返回了数组（如直接返回 chapters 列表），包装成 dict
+    if isinstance(result, list):
+        result = {"book_title": "未命名书籍", "chapters": result}
+    return result
 
 
 # ==================== 章节检测 ====================
