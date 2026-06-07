@@ -4,6 +4,7 @@ FastAPI 主入口 — 择书Zesoo 后端
 """
 
 import asyncio
+import io
 import json
 import os
 import uuid
@@ -400,6 +401,98 @@ async def get_user_detail(fingerprint: str, password: str = Query(...)):
     if not detail:
         raise HTTPException(status_code=404, detail="用户不存在")
     return detail
+
+
+@app.get("/api/admin/export")
+async def export_stats(password: str = Query(...), format: str = Query("json")):
+    """导出统计数据（JSON 或 CSV），需管理密码"""
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="密码错误")
+    data = stats_module.get_stats()
+
+    if format == "csv":
+        import csv
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # 概览
+        o = data["overview"]
+        writer.writerow(["=== 概览汇总 ==="])
+        writer.writerow(["指标", "数值"])
+        writer.writerow(["页面访问", o["total_visits"]])
+        writer.writerow(["上传次数", o["total_uploads"]])
+        writer.writerow(["完成分析", o["completed"]])
+        writer.writerow(["失败次数", o["failed"]])
+        writer.writerow(["成功率(%)", o["success_rate"]])
+        writer.writerow(["导出下载", o["total_exports"]])
+        writer.writerow(["导出率(%)", o["export_rate"]])
+        writer.writerow(["独立访客", o["unique_users"]])
+        writer.writerow(["处理字数", o["total_chars"]])
+        writer.writerow(["累计Token", o["total_tokens"]])
+        writer.writerow(["估算费用(¥)", o["cost_est"]])
+        writer.writerow(["累计耗时(h)", o["total_time_hours"]])
+        writer.writerow(["OCR页数", o["ocr_pages"]])
+        writer.writerow(["平均耗时(s)", o["avg_duration_seconds"]])
+        writer.writerow([])
+
+        # 每日明细
+        writer.writerow(["=== 每日明细 ==="])
+        writer.writerow(["日期", "访问", "上传", "完成", "Token", "导出", "失败"])
+        for d in data.get("daily_trend", []):
+            writer.writerow([d["date"], d["visits"], d["uploads"], d["completed"],
+                           d["tokens"], d["exports"], d["fails"]])
+        writer.writerow([])
+
+        # 分布
+        writer.writerow(["=== 文件类型分布 ==="])
+        for k, v in data.get("file_types", {}).items():
+            writer.writerow([k.upper(), v])
+        writer.writerow([])
+        writer.writerow(["=== 书籍规模分布 ==="])
+        for k, v in data.get("size_distribution", {}).items():
+            writer.writerow([k, v])
+        writer.writerow([])
+        writer.writerow(["=== 设备分布 ==="])
+        for k, v in data.get("devices", {}).items():
+            writer.writerow([k, v])
+        writer.writerow([])
+        writer.writerow(["=== 失败原因 ==="])
+        for k, v in data.get("failure_reasons", {}).items():
+            writer.writerow([k, v])
+        writer.writerow([])
+
+        # 阶段耗时
+        writer.writerow(["=== 各阶段平均耗时(s) ==="])
+        for k, v in data.get("phase_avgs", {}).items():
+            writer.writerow([k, v])
+        writer.writerow([])
+
+        # 任务列表
+        writer.writerow(["=== 最近任务 ==="])
+        writer.writerow(["文件名", "字数", "Token估算", "耗时(s)", "章节数", "状态", "错误"])
+        for t in data.get("recent_tasks", []):
+            writer.writerow([t.get("filename", ""), t.get("chars", 0),
+                           t.get("tokens_est", 0), t.get("duration_seconds", ""),
+                           t.get("chapters", 0), t.get("status", ""),
+                           t.get("error", "")])
+
+        csv_content = output.getvalue()
+        # BOM for Excel 中文兼容
+        csv_bytes = ("﻿" + csv_content).encode("utf-8")
+        return StreamingResponse(
+            io.BytesIO(csv_bytes),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=zesoo_stats.csv"},
+        )
+
+    # JSON 格式
+    json_str = json.dumps(data, ensure_ascii=False, indent=2)
+    return StreamingResponse(
+        io.BytesIO(json_str.encode("utf-8")),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=zesoo_stats.json"},
+    )
 
 
 @app.get("/api/debug/test-pipeline")
