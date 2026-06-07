@@ -17,6 +17,8 @@ interface UserSummary {
 
 interface UserDetail extends UserSummary {
   chars_processed: number; total_time_seconds: number;
+  file_types: Record<string, number>; size_distribution: Record<string, number>;
+  failure_reasons: Record<string, number>; phase_times: Record<string, number>;
   tasks: TaskEntry[];
 }
 
@@ -409,26 +411,52 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
             <MiniCard l="Token" v={fmtTokens(user.tokens_used)} />
           </div>
           <div className="text-xs text-gray-400 space-y-1">
-            <p>IP: {user.ip_masked} · 设备: {user.device}</p>
+            <p>IP: {user.ip_masked} · 设备: {user.device === "mobile" ? "📱手机" : user.device === "tablet" ? "📟平板" : "💻电脑"}</p>
             <p>首次访问: {fmtTime(user.first_seen)}</p>
             <p>最近活跃: {fmtTime(user.last_seen)}</p>
             {user.total_time_seconds > 0 && <p>累计用时: {(user.total_time_seconds / 60).toFixed(1)} 分钟</p>}
             {user.chars_processed > 0 && <p>处理字数: {(user.chars_processed / 10000).toFixed(1)} 万字</p>}
           </div>
+
+          {/* 用户维度的分布图 */}
+          <div className="grid grid-cols-2 gap-3">
+            <MiniDist title="📁 文件类型" data={user.file_types} colors={{ pdf: "#ef4444", docx: "#3b82f6", txt: "#6b7280" }} />
+            <MiniDist title="📏 书籍规模" data={user.size_distribution} colors={{ small: "#22c55e", medium: "#f59e0b", large: "#ef4444" }} labels={{ small: "小", medium: "中", large: "大" }} />
+          </div>
+
+          {Object.keys(user.failure_reasons).length > 0 && (
+            <MiniDist title="❌ 失败原因" data={user.failure_reasons} colors={{ "OCR识别失败": "#ef4444", "超时": "#f59e0b", "API Key错误": "#dc2626", "文件解析失败": "#8b5cf6", "章节切分失败": "#06b6d4", "其他错误": "#6b7280" }} />
+          )}
+
+          {Object.values(user.phase_times).some(v => v > 0) && (
+            <div>
+              <h3 className="text-xs font-bold text-gray-500 mb-2">⏱ 阶段耗时</h3>
+              <div className="flex gap-2 text-xs">
+                {Object.entries(user.phase_times).filter(([, v]) => v > 0).map(([k, v]) => (
+                  <span key={k} className="px-2 py-1 bg-gray-50 rounded-lg text-gray-600">
+                    {k === "parse" ? "解析" : k === "detect" ? "识别" : "分析"}: {v.toFixed(0)}s
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {tasks.length > 0 && (
             <div>
               <h3 className="text-sm font-bold text-gray-700 mb-2">任务记录</h3>
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {tasks.map((t) => (
                   <div key={t.task_id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg bg-gray-50">
-                    <span className="text-gray-600 truncate max-w-[180px]">{t.filename}</span>
+                    <span className="text-gray-600 truncate max-w-[150px]" title={t.filename}>{t.filename}</span>
                     <span className="text-gray-400">{(t.chars / 1000).toFixed(0)}k字</span>
+                    <span className="text-gray-400">{t.duration_seconds ? `${t.duration_seconds.toFixed(0)}s` : ""}</span>
                     <span>{t.status === "completed" ? "✅" : t.status === "failed" ? "❌" : "⏳"}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
@@ -441,6 +469,31 @@ function MiniCard({ l, v, c }: { l: string; v: string | number; c?: string }) {
     <div className="bg-gray-50 rounded-xl p-3 text-center">
       <div className="text-xs text-gray-400">{l}</div>
       <div className={`text-lg font-bold ${cc}`}>{v}</div>
+    </div>
+  );
+}
+
+function MiniDist({ title, data, colors, labels }: { title: string; data?: Record<string, number>; colors: Record<string, string>; labels?: Record<string, string> }) {
+  if (!data) return null;
+  const entries = Object.entries(data).filter(([, v]) => v > 0);
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (total === 0) return null;
+  return (
+    <div>
+      <h3 className="text-xs font-bold text-gray-500 mb-2">{title}</h3>
+      <div className="space-y-1.5">
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <div className="flex justify-between text-[10px] mb-0.5">
+              <span className="text-gray-500">{labels?.[k] || k.toUpperCase()}</span>
+              <span className="text-gray-400">{v}</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${(v / total) * 100}%`, backgroundColor: colors[k] || "#6b7280" }} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -65,16 +65,13 @@ def _get_or_create_user(data: dict, fp: str, ip: str, ua: str) -> dict:
             "fingerprint": fp,
             "first_seen": time.time(),
             "last_seen": time.time(),
-            "visits": 0,
-            "uploads": 0,
-            "completed": 0,
-            "failed": 0,
-            "exports": 0,
-            "tokens_used": 0,
-            "chars_processed": 0,
-            "total_time_seconds": 0,
-            "device": dev,
-            "ip_masked": _mask_ip(ip),
+            "visits": 0, "uploads": 0, "completed": 0, "failed": 0, "exports": 0,
+            "tokens_used": 0, "chars_processed": 0, "total_time_seconds": 0,
+            "device": dev, "ip_masked": _mask_ip(ip),
+            "file_types": {"pdf": 0, "txt": 0, "docx": 0},
+            "size_distribution": {"small": 0, "medium": 0, "large": 0},
+            "failure_reasons": {},
+            "phase_times": {"parse": 0, "detect": 0, "analyze": 0},
             "tasks": [],
         }
         # 只保留最近 200 个用户
@@ -122,6 +119,8 @@ def record_upload(ip: str, ua: str, filename: str):
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown"
     if ext in data["file_types"]:
         data["file_types"][ext] += 1
+    if ext in user["file_types"]:
+        user["file_types"][ext] += 1
 
     _save(data)
 
@@ -133,11 +132,13 @@ def record_task_start(ip: str, ua: str, task_id: str, filename: str, chars: int)
     user["last_seen"] = time.time()
 
     if chars < 10000:
-        data["size_distribution"]["small"] += 1
+        size_cat = "small"
     elif chars < 100000:
-        data["size_distribution"]["medium"] += 1
+        size_cat = "medium"
     else:
-        data["size_distribution"]["large"] += 1
+        size_cat = "large"
+    data["size_distribution"][size_cat] += 1
+    user["size_distribution"][size_cat] += 1
 
     entry = {
         "task_id": task_id, "filename": filename, "chars": chars,
@@ -189,12 +190,17 @@ def record_task_done(ip: str, ua: str, task_id: str, success: bool,
                 user["tokens_used"] += entry["tokens_est"]
                 user["chars_processed"] += entry["chars"]
                 user["total_time_seconds"] += entry["duration_seconds"]
+                # 用户阶段耗时累计
+                for ph in ["parse", "detect", "analyze"]:
+                    if ph in entry.get("phase_times", {}):
+                        user["phase_times"][ph] += entry["phase_times"][ph]
             else:
                 data["failed_analyses"] += 1
                 _today(data)["fails"] += 1
                 user["failed"] += 1
                 reason = _classify_error(error or "未知错误")
                 data["failure_reasons"][reason] = data["failure_reasons"].get(reason, 0) + 1
+                user["failure_reasons"][reason] = user["failure_reasons"].get(reason, 0) + 1
             break
 
     # 用户维度同步
@@ -335,15 +341,15 @@ def get_user_detail(fingerprint: str) -> dict | None:
         "fingerprint": user["fingerprint"],
         "first_seen": user["first_seen"],
         "last_seen": user["last_seen"],
-        "visits": user["visits"],
-        "uploads": user["uploads"],
-        "completed": user["completed"],
-        "failed": user["failed"],
-        "exports": user["exports"],
-        "tokens_used": user["tokens_used"],
+        "visits": user["visits"], "uploads": user["uploads"],
+        "completed": user["completed"], "failed": user["failed"],
+        "exports": user["exports"], "tokens_used": user["tokens_used"],
         "chars_processed": user["chars_processed"],
         "total_time_seconds": user["total_time_seconds"],
-        "device": user["device"],
-        "ip_masked": user["ip_masked"],
+        "device": user["device"], "ip_masked": user["ip_masked"],
+        "file_types": user.get("file_types", {}),
+        "size_distribution": user.get("size_distribution", {}),
+        "failure_reasons": user.get("failure_reasons", {}),
+        "phase_times": user.get("phase_times", {}),
         "tasks": user.get("tasks", [])[:20],
     }
