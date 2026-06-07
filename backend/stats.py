@@ -47,8 +47,64 @@ def _today(data: dict) -> dict:
 
 
 def _fingerprint(ip: str, ua: str) -> str:
-    raw = f"{ip}|{ua[:100] if ua else ''}"
+    # 归一化 IP：取 /24 子网（前3段），避免 DHCP 换 IP 导致指纹变化
+    norm_ip = _norm_ip(ip)
+    # 归一化 UA：只提取浏览器家族 + OS，去掉版本号
+    norm_ua = _norm_ua(ua)
+    raw = f"{norm_ip}|{norm_ua}"
     return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+def _norm_ip(ip: str) -> str:
+    """IPv4 取前3段，IPv6 取前2组"""
+    if not ip:
+        return "0.0.0"
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return ".".join(parts[:3])  # 192.168.1
+    if ":" in ip:
+        parts = ip.split(":")
+        return ":".join(parts[:2])  # 2001:db8
+    return ip[:12]
+
+
+def _norm_ua(ua: str) -> str:
+    """从 UA 提取浏览器 + OS 类型，忽略版本号"""
+    if not ua:
+        return "unknown"
+    lower = ua.lower()
+
+    # 检测 OS
+    if "windows" in lower:
+        os_family = "Windows"
+    elif "mac os" in lower or "macintosh" in lower:
+        os_family = "Mac"
+    elif "android" in lower:
+        os_family = "Android"
+    elif "iphone" in lower or "ipad" in lower or "ipod" in lower:
+        os_family = "iOS"
+    elif "linux" in lower:
+        os_family = "Linux"
+    else:
+        os_family = "Other"
+
+    # 检测浏览器
+    if "edg/" in lower:
+        browser = "Edge"
+    elif "chrome/" in lower and "crios/" not in lower:
+        browser = "Chrome"
+    elif "safari/" in lower and "chrome/" not in lower:
+        browser = "Safari"
+    elif "firefox/" in lower:
+        browser = "Firefox"
+    elif "opr/" in lower or "opera/" in lower:
+        browser = "Opera"
+    elif "samsungbrowser/" in lower:
+        browser = "Samsung"
+    else:
+        browser = "Other"
+
+    return f"{browser}-{os_family}"
 
 
 def _get_or_create_user(data: dict, fp: str, ip: str, ua: str) -> dict:
