@@ -22,7 +22,7 @@ from parser import parse_file, get_text_stats
 from ai_service import detect_chapters, split_text_by_chapters, analyze_chapter, estimate_tokens
 from export_service import generate_docx
 
-app = FastAPI(title="LumCore Reader API", version="1.0.0")
+app = FastAPI(title="择书Zesoo API", version="1.0.0")
 
 # CORS — 允许前端跨域访问
 app.add_middleware(

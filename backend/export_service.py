@@ -133,7 +133,7 @@ def generate_docx(report: dict, output_dir: str) -> str:
     doc.add_paragraph("—" * 40)
     footer = doc.add_paragraph()
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = footer.add_run("本报告由 AI 自动生成，仅供参考 | LumCore Reader")
+    run = footer.add_run("本报告由 AI 自动生成，仅供参考 | 择书Zesoo")
     run.font.size = Pt(8)
     run.font.color.rgb = RGBColor(203, 213, 225)
 

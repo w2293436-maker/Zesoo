@@ -1,4 +1,4 @@
-# LumCore Reader — 书籍精读报告生成器
+# 择书Zesoo — 书籍精读报告生成器
 
 上传 PDF / TXT / DOCX 书籍文件，AI（DeepSeek）自动生成包含章节脉络、核心观点、金句摘录、读后启示的精读报告，支持导出 Word 文档。
 
