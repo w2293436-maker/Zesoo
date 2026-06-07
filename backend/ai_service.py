@@ -34,36 +34,40 @@ def _safe_json_parse(content: str) -> dict:
 
 # ==================== 章节检测 ====================
 
-CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请扫描以下书籍文本，识别出书中所有的"章节"或"小节"。
+CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请扫描以下书籍文本，识别出书中所有的章节和小节。
 
 要求：
-1. 识别书籍中每一个独立的章节/小节单位（以"第X章""第X节""Chapter""Part""一、""1."等为标记，或根据内容主题变化判断）
+1. 识别书籍中每一个独立的章节/小节单位
 2. 对于每个章节，提取：
-   - chapter_name: 完整章节标题（如"第一章 时间管理基础"）
-   - start_marker: 该章节开头的特征文字（20字以内，用于精确定位，必须能在原文中唯一匹配到）
-3. 不要合并章节，尽可能细地划分（小节级别优先于大章级别）
-4. 按书中出现顺序排列
-
-请返回 JSON：
-{
-  "book_title": "识别到的书名",
-  "chapters": [
-    {"chapter_name": "章节标题", "start_marker": "该章节开头20字"},
-    ...
-  ]
-}
+   - chapter_name: 完整章节标题
+   - start_marker: 该章节开头的特征文字（20字以内，用于在原文中精确定位）
+3. 按书中出现顺序排列，不要合并、不要遗漏
 
 注意：
-- start_marker 必须取自原文开头，确保在原文中可精确查找
-- 如果文本没有明显的章节标记，根据内容主题的自然断点来划分
-- 最少划分1个章节，最多划分50个章节
+- start_marker 必须取自该章节开头原文，确保在原文中可精确查找
+- 如果文本没有明显章节标记，根据内容主题的自然断点来划分
 - 只返回 JSON，不要有其他文字"""
+
+
+def _build_scan_text(text: str) -> str:
+    """构建发给 AI 的文本：尽可能发送完整内容，超长时均匀采样"""
+    max_chars = 80000  # deepseek-chat 64K token ≈ 96K-128K 汉字，留余量
+    if len(text) <= max_chars:
+        return text, len(text)
+
+    # 超长文本：前40K + 中段采样 + 后20K
+    head = text[:40000]
+    tail = text[-20000:]
+    mid_start = len(text) // 3
+    mid_end = mid_start + 20000
+    mid = text[mid_start:mid_end]
+    sample = f"{head}\n\n...（中段采样）...\n\n{mid}\n\n...（末尾）...\n\n{tail}"
+    return sample, len(text)
 
 
 async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
     """AI 识别书籍章节结构"""
-    # 发前 60000 字符用于章节检测（长书也能覆盖更多章节）
-    scan_text = text[:60000] if len(text) > 60000 else text
+    scan_text, total_chars = _build_scan_text(text)
 
     response = await client.post(
         f"{DEEPSEEK_BASE_URL}/chat/completions",
@@ -75,14 +79,13 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
             "model": DEEPSEEK_MODEL,
             "messages": [
                 {"role": "system", "content": CHAPTER_DETECT_PROMPT},
-                {"role": "user", "content": f"请识别以下书籍的章节结构：\n\n{scan_text}\n\n" +
-                    f"（注意：全书共 {len(text)} 字符，以上仅为前 {len(scan_text)} 字符。请尽量识别所有可能的章节。）"},
+                {"role": "user", "content": f"请识别以下书籍的完整章节结构（全书约{total_chars}字符）。\n\n{scan_text}"},
             ],
             "temperature": 0.1,
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "response_format": {"type": "json_object"},
         },
-        timeout=120.0,
+        timeout=180.0,
     )
     response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
