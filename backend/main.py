@@ -21,7 +21,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from config import UPLOAD_DIR, MAX_FILE_SIZE_MB, ALLOWED_EXTENSIONS
 from parser import parse_file, get_text_stats
-from ai_service import detect_chapters, split_text_by_chapters, analyze_chapter, estimate_tokens
+from ai_service import detect_chapters, split_text_by_chapters, analyze_chapter
 from export_service import generate_docx
 import stats as stats_module
 

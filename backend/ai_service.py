@@ -102,31 +102,43 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
     """AI 识别书籍章节结构"""
     scan_text, total_chars = _build_scan_text(text)
 
-    response = await client.post(
-        f"{DEEPSEEK_BASE_URL}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": DEEPSEEK_MODEL,
-            "messages": [
-                {"role": "system", "content": CHAPTER_DETECT_PROMPT},
-                {"role": "user", "content": f"请识别以下书籍的完整章节结构（全书约{total_chars}字符）。\n\n{scan_text}"},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 16384,
-            "response_format": {"type": "json_object"},
-        },
-        timeout=180.0,
-    )
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
-    if content.startswith("```"):
-        content = content.split("\n", 1)[1]
-        if content.endswith("```"):
-            content = content[:-3]
-    return _safe_json_parse(content)
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "messages": [
+            {"role": "system", "content": CHAPTER_DETECT_PROMPT},
+            {"role": "user", "content": f"请识别以下书籍的完整章节结构（全书约{total_chars}字符）。\n\n{scan_text}"},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 16384,
+        "response_format": {"type": "json_object"},
+    }
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await client.post(
+                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=180.0,
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1]
+                if content.endswith("```"):
+                    content = content[:-3]
+            return _safe_json_parse(content)
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
+            continue
+
+    raise last_error or RuntimeError("章节检测失败")
 
 
 def split_text_by_chapters(text: str, chapters: list[dict]) -> list[dict]:
@@ -282,31 +294,49 @@ async def analyze_chapter(
     total: int,
 ) -> dict:
     """对单个章节进行完整精读分析"""
-    response = await client.post(
-        f"{DEEPSEEK_BASE_URL}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": DEEPSEEK_MODEL,
-            "messages": [
-                {"role": "system", "content": CHAPTER_ANALYSIS_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"请精读分析《{chapter_name}》（第 {chapter_index + 1}/{total} 章）：\n\n{chapter_text}",
-                },
-            ],
-            "temperature": 0.3,
-            "max_tokens": 16384,
-            "response_format": {"type": "json_object"},
-        },
-        timeout=180.0,
-    )
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
-    result = _safe_json_parse(content)
+    # 章节超长时截断（留 16K 输出 + prompt 空间，输入控制在 ~65K 字符内）
+    max_input = 65000
+    if len(chapter_text) > max_input:
+        head = chapter_text[:40000]
+        tail = chapter_text[-20000:]
+        chapter_text = f"{head}\n\n...（中间省略 {len(chapter_text) - 60000} 字符）...\n\n{tail}"
 
-    # 加上章节名
-    result["chapter_name"] = chapter_name
-    return result
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "messages": [
+            {"role": "system", "content": CHAPTER_ANALYSIS_PROMPT},
+            {
+                "role": "user",
+                "content": f"请精读分析《{chapter_name}》（第 {chapter_index + 1}/{total} 章）：\n\n{chapter_text}",
+            },
+        ],
+        "temperature": 0.3,
+        "max_tokens": 16384,
+        "response_format": {"type": "json_object"},
+    }
+
+    # 最多重试 2 次（处理临时网络故障或 API 限流）
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await client.post(
+                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=180.0,
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            result = _safe_json_parse(content)
+            result["chapter_name"] = chapter_name
+            return result
+        except Exception as e:
+            last_error = e
+            if attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))  # 递增等待
+            continue
+
+    raise last_error or RuntimeError("未知错误")

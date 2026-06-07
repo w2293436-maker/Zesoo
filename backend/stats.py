@@ -279,11 +279,11 @@ def record_task_done(ip: str, ua: str, task_id: str, success: bool,
             e["status"] = "completed" if success else "failed"
             e["chapters"] = chapters
             e["error"] = error
-            if entry.get("duration_seconds"):
+            if entry is not None and entry.get("duration_seconds"):
                 e["duration_seconds"] = entry["duration_seconds"]
             break
     else:
-        entry = None  # 如果 for 循环没找到，entry 不存在，防止后面报错
+        entry = None
 
     _save(data)
 
