@@ -97,7 +97,7 @@ function DisclaimerContent() {
       </Section>
 
       <Section title="六、联系方式">
-        <p>如对本工具或本声明有任何疑问、建议或侵权投诉，请联系：<strong>zesoo@163.com</strong>，我们会在收到邮件后及时处理。</p>
+        <p>如对本工具或本声明有任何疑问、建议或侵权投诉，请联系：<strong>w2293436@gmail.com</strong>，我们会在收到邮件后及时处理。</p>
       </Section>
     </div>
   );
