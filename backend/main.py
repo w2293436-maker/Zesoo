@@ -15,6 +15,7 @@ import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from config import UPLOAD_DIR, MAX_FILE_SIZE_MB, ALLOWED_EXTENSIONS
@@ -23,6 +24,9 @@ from ai_service import detect_chapters, split_text_by_chapters, analyze_chapter,
 from export_service import generate_docx
 
 app = FastAPI(title="择书Zesoo API", version="1.0.0")
+
+# 静态文件目录（前端构建产物）
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 # CORS — 允许前端跨域访问
 app.add_middleware(
@@ -369,6 +373,16 @@ async def debug_test_pipeline():
 
     except Exception as e:
         return {"success": False, "debug": debug_log, "error": str(e), "traceback": traceback.format_exc()}
+
+
+# ===== 前端静态文件 & SPA（必须在所有 API 路由之后） =====
+if os.path.exists(STATIC_DIR):
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        filepath = os.path.join(STATIC_DIR, full_path)
+        if os.path.isfile(filepath):
+            return FileResponse(filepath)
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
 # ==================== 启动入口 ====================
