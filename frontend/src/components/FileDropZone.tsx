@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 
 interface FileDropZoneProps {
   file: File | null;
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | null) => void;
 }
 
 const ACCEPTED_TYPES = ".pdf,.txt,.docx";
@@ -84,7 +84,7 @@ export default function FileDropZone({ file, onFileSelect }: FileDropZoneProps) 
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onFileSelect(null as unknown as File);
+              onFileSelect(null);
             }}
             className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
           >

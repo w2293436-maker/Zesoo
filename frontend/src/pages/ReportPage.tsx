@@ -36,14 +36,15 @@ export default function ReportPage({ taskId, onRestart, onGoAdmin }: ReportPageP
   const handleExport = () => {
     setExporting(true);
     const url = getExportUrl(taskId);
-    // 用 window.open 直接打开下载链接，手机端兼容性最好
-    // 后端 FileResponse 会带上 Content-Disposition: attachment 头，浏览器自动下载
-    const w = window.open(url, "_blank");
-    // 如果弹窗被拦截，退回当前页直接下载
-    if (!w || w.closed) {
-      window.location.assign(url);
-    }
-    setTimeout(() => setExporting(false), 2000);
+    // 用隐藏 iframe 触发下载，PC和手机浏览器都兼容
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      setExporting(false);
+    }, 2000);
   };
 
   if (loading) {

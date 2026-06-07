@@ -19,8 +19,11 @@ def _load() -> dict:
 
 
 def _save(data: dict):
-    with open(STATS_FILE, "w", encoding="utf-8") as f:
+    # 原子写入：先写临时文件再 rename，防止写入中崩溃导致数据损坏
+    tmp = STATS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, STATS_FILE)
 
 
 def _default() -> dict:
@@ -279,6 +282,8 @@ def record_task_done(ip: str, ua: str, task_id: str, success: bool,
             if entry.get("duration_seconds"):
                 e["duration_seconds"] = entry["duration_seconds"]
             break
+    else:
+        entry = None  # 如果 for 循环没找到，entry 不存在，防止后面报错
 
     _save(data)
 

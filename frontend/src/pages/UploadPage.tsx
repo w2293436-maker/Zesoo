@@ -9,6 +9,7 @@ interface UploadPageProps {
 }
 
 export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
+  const setFileSafe = (f: File | null) => { setFile(f); if (f === null) setAgreed(false); };
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -75,7 +76,7 @@ export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
 
       {/* 上传区域卡片 */}
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-8">
-        <FileDropZone file={file} onFileSelect={setFile} />
+        <FileDropZone file={file} onFileSelect={setFileSafe} />
 
         {/* 同意条款勾选框 */}
         {file && (

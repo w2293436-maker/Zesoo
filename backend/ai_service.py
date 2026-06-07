@@ -27,7 +27,6 @@ def _safe_json_parse(content: str) -> dict:
             content = content[:-3]
     content = content.strip()
     # 移除 JSON 字符串中的非法控制字符
-    import re
     content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', content)
     return json.loads(content)
 
@@ -51,26 +50,22 @@ CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请�
 
 def _scan_chapter_markers(text: str) -> list[str]:
     """用正则扫描全书，找到所有可能的章节开头位置，返回 marker 列表"""
-    markers = []
-    for m in re.finditer(r'第[零一二三四五六七八九十百千\d]+[章节回部篇]', text):
-        start = m.start()
-        end = min(start + 50, len(text))
-        snippet = text[start:end]
-        nl = snippet.find('\n')
-        title = snippet[:nl].strip() if nl > 0 else snippet[:40].strip()
-        if len(title) >= 3:
-            # 记下位置和前20字
-            markers.append({"pos": start, "marker": title[:20]})
+    patterns = [
+        r'第[零一二三四五六七八九十百千\d]+[章节回部篇]',  # 第X章
+        r'(?:Chapter|CHAPTER|Part|PART)\s*\d+',  # Chapter 1
+        r'第[零一二三四五六七八九十百千\d]+[节課讲]',  # 第X节/第X课/第X讲
+    ]
 
-    if not markers:
-        # 尝试英文章节
-        for m in re.finditer(r'(?:Chapter|CHAPTER|Part|PART)\s*\d+', text):
+    markers = []
+    for pattern in patterns:
+        for m in re.finditer(pattern, text):
             start = m.start()
             end = min(start + 50, len(text))
             snippet = text[start:end]
             nl = snippet.find('\n')
             title = snippet[:nl].strip() if nl > 0 else snippet[:40].strip()
-            markers.append({"pos": start, "marker": title[:20]})
+            if len(title) >= 2:
+                markers.append({"pos": start, "marker": title[:20]})
 
     return markers
 
@@ -303,7 +298,7 @@ async def analyze_chapter(
                 },
             ],
             "temperature": 0.3,
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "response_format": {"type": "json_object"},
         },
         timeout=180.0,

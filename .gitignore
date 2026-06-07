@@ -8,3 +8,6 @@ uploads/
 .venv/
 venv/
 .DS_Store
+backend/stats.json
+backend/tasks.json
+backend/uploads/
