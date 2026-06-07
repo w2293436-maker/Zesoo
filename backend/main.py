@@ -71,9 +71,38 @@ async def track_visits(request, call_next):
     return response
 
 
-# ===== 任务状态管理（内存中，重启丢失） =====
-# 生产环境建议改用 Redis
-tasks: dict = {}  # task_id -> {status, progress, report, file_path, ...}
+# ===== 任务状态管理（内存 + JSON 持久化） =====
+TASKS_FILE = os.path.join(UPLOAD_DIR, "tasks.json")
+tasks: dict = {}  # task_id -> {status, progress, report, ...}
+
+
+def _load_tasks():
+    """启动时从磁盘恢复已完成的任务"""
+    global tasks
+    try:
+        if os.path.exists(TASKS_FILE):
+            with open(TASKS_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                for tid, t in saved.items():
+                    if t.get("status") == "completed" and t.get("report"):
+                        tasks[tid] = t
+            print(f"[INIT] 从磁盘恢复了 {len(tasks)} 个已完成任务")
+    except Exception:
+        pass
+
+
+def _persist_tasks():
+    """将已完成任务写入磁盘（只存 completed，进行中的没必要存）"""
+    try:
+        completed = {tid: t for tid, t in tasks.items() if t.get("status") == "completed"}
+        if completed:
+            with open(TASKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(completed, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+_load_tasks()
 
 
 def set_progress(task_id: str, progress: int, step: str, detail: str = ""):
@@ -136,6 +165,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         semaphore = asyncio.Semaphore(3)  # 并发控制
 
         async def analyze_one(chapter: dict) -> dict:
+            idx = chapter["index"]
             async with semaphore:
                 async with httpx.AsyncClient() as client:
                     try:
@@ -143,9 +173,10 @@ async def process_book(task_id: str, file_path: str, filename: str):
                             client,
                             chapter["chapter_name"],
                             chapter["text"],
-                            chapter["index"],
+                            idx,
                             total,
                         )
+                        result["_idx"] = idx  # 保留原始顺序
                         return result
                     except Exception as e:
                         return {
@@ -156,6 +187,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
                             "methodology": [],
                             "actionable_insights": [],
                             "_error": str(e),
+                            "_idx": idx,
                         }
 
         tasks_list = [analyze_one(ch) for ch in chapter_blocks]
@@ -170,13 +202,10 @@ async def process_book(task_id: str, file_path: str, filename: str):
                 f"精读分析中... ({i + 1}/{total})",
             )
 
-        # 按原始顺序排列
-        chapter_results.sort(
-            key=lambda x: next(
-                (c["index"] for c in chapter_blocks if c["chapter_name"] == x.get("chapter_name")),
-                len(chapter_results),
-            )
-        )
+        # 按原始章节顺序排列（用 _idx 而不是名字）
+        chapter_results.sort(key=lambda x: x.get("_idx", len(chapter_results)))
+        for r in chapter_results:
+            r.pop("_idx", None)  # 清理临时字段
 
         # ---- 阶段 5：组装最终报告 ----
         set_progress(task_id, 85, "done", "正在组装报告...")
@@ -204,6 +233,16 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["step"] = "error"
         tasks[task_id]["detail"] = f"处理失败：{e}"
         stats_module.record_task_done(ip, ua, task_id, False, error=str(e))
+
+    finally:
+        # 清理上传的原始文件（报告已存内存，导出后会另存 exports 目录）
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
+        # 持久化任务状态到磁盘（防重启丢失）
+        _persist_tasks()
 
 
 # ==================== API 路由 ====================

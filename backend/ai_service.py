@@ -49,19 +49,57 @@ CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请�
 - 只返回 JSON，不要有其他文字"""
 
 
-def _build_scan_text(text: str) -> str:
-    """构建发给 AI 的文本：尽可能发送完整内容，超长时均匀采样"""
-    max_chars = 80000  # deepseek-chat 64K token ≈ 96K-128K 汉字，留余量
+def _scan_chapter_markers(text: str) -> list[str]:
+    """用正则扫描全书，找到所有可能的章节开头位置，返回 marker 列表"""
+    markers = []
+    for m in re.finditer(r'第[零一二三四五六七八九十百千\d]+[章节回部篇]', text):
+        start = m.start()
+        end = min(start + 50, len(text))
+        snippet = text[start:end]
+        nl = snippet.find('\n')
+        title = snippet[:nl].strip() if nl > 0 else snippet[:40].strip()
+        if len(title) >= 3:
+            # 记下位置和前20字
+            markers.append({"pos": start, "marker": title[:20]})
+
+    if not markers:
+        # 尝试英文章节
+        for m in re.finditer(r'(?:Chapter|CHAPTER|Part|PART)\s*\d+', text):
+            start = m.start()
+            end = min(start + 50, len(text))
+            snippet = text[start:end]
+            nl = snippet.find('\n')
+            title = snippet[:nl].strip() if nl > 0 else snippet[:40].strip()
+            markers.append({"pos": start, "marker": title[:20]})
+
+    return markers
+
+
+def _build_scan_text(text: str) -> tuple[str, int]:
+    """构建发给 AI 的文本"""
+    max_chars = 80000
     if len(text) <= max_chars:
         return text, len(text)
 
-    # 超长文本：前40K + 中段采样 + 后20K
-    head = text[:40000]
-    tail = text[-20000:]
-    mid_start = len(text) // 3
-    mid_end = mid_start + 20000
-    mid = text[mid_start:mid_end]
-    sample = f"{head}\n\n...（中段采样）...\n\n{mid}\n\n...（末尾）...\n\n{tail}"
+    # 超长文本：扫全书章节标记 + 首尾采样
+    markers = _scan_chapter_markers(text)
+    head = text[:30000]
+    tail = text[-15000:]
+
+    if markers:
+        marker_list = "\n".join([
+            f"  pos={m['pos']} marker=\"{m['marker']}\""
+            for m in markers[:120]  # 最多发 120 个标记
+        ])
+        hint = f"程序已扫描全书，发现以下章节标记（共 {len(markers)} 个）：\n{marker_list}\n\n"
+        if len(markers) > 120:
+            hint += f"（仅列出前 120 个，共 {len(markers)} 个，请推断完整结构）\n\n"
+        sample = hint + f"全文开头：\n{head}\n\n...\n\n全文末尾：\n{tail}"
+    else:
+        mid_start = len(text) // 3
+        mid = text[mid_start:mid_start + 20000]
+        sample = f"{head}\n\n...（中段采样）...\n\n{mid}\n\n...（末尾）...\n\n{tail}"
+
     return sample, len(text)
 
 
