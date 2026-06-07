@@ -100,12 +100,15 @@ def _mask_ip(ip: str) -> str:
 def record_visit(ip: str, ua: str):
     data = _load()
     fp = _fingerprint(ip, ua)
+    is_new = fp not in data["users"]
     user = _get_or_create_user(data, fp, ip, ua)
 
     data["total_visits"] += 1
     user["visits"] += 1
     user["last_seen"] = time.time()
-    data["devices"][user["device"]] += 1
+    # 只在用户首次出现时计数设备类型（避免重复计数）
+    if is_new:
+        data["devices"][user["device"]] += 1
     _today(data)["visits"] += 1
 
     _save(data)
@@ -147,7 +150,7 @@ def record_task_start(ip: str, ua: str, task_id: str, filename: str, chars: int)
 
     entry = {
         "task_id": task_id, "filename": filename, "chars": chars,
-        "tokens_est": int(chars / 2.5), "start_time": time.time(),
+        "tokens_est": int(chars * 1.6), "start_time": time.time(),
         "finish_time": None, "duration_seconds": None,
         "status": "processing", "chapters": 0, "error": None, "phase_times": {},
     }
@@ -165,7 +168,10 @@ def record_phase_time(task_id: str, phase: str):
     data = _load()
     for entry in data["recent_tasks"]:
         if entry["task_id"] == task_id:
-            entry["phase_times"][phase] = round(time.time() - entry["start_time"], 1)
+            elapsed = round(time.time() - entry["start_time"], 1)
+            # 减去之前各阶段的累计值，得到本阶段实际耗时
+            prev_total = sum(entry.get("phase_times", {}).values())
+            entry["phase_times"][phase] = round(elapsed - prev_total, 1)
             _save(data)
             return
 
@@ -282,7 +288,8 @@ def get_stats() -> dict:
             "fails": d.get("fails", 0),
         })
 
-    cost_est = round(data["total_tokens_used"] / 1000000 * 1.5, 2)
+    # DeepSeek chat: 输入 ¥1/M, 输出 ¥2/M, 混合约 ¥1.2/M
+    cost_est = round(data["total_tokens_used"] / 1000000 * 1.2, 2)
 
     # 用户列表（按最近活跃排序）
     user_list = sorted(data["users"].values(),
