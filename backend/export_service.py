@@ -49,7 +49,8 @@ def generate_docx(report: dict, output_dir: str) -> str:
         doc.add_heading("📝 章节总结", level=2)
         summary = ch.get("summary", "")
         if summary:
-            doc.add_paragraph(summary)
+            sp = doc.add_paragraph(summary)
+            sp.paragraph_format.space_after = Pt(6)
 
         # 2. 核心观点
         doc.add_heading("💡 核心观点", level=2)
@@ -59,10 +60,15 @@ def generate_docx(report: dict, output_dir: str) -> str:
                 idea_text = item.get("idea", "")
                 elaboration = item.get("elaboration", "")
                 p = doc.add_paragraph()
-                run = p.add_run(f"观点 {j}：{idea_text}")
+                run = p.add_run(f"观点 {j}：")
                 run.bold = True
+                p.add_run(idea_text)
                 if elaboration:
-                    doc.add_paragraph(elaboration)
+                    p2 = doc.add_paragraph(elaboration)
+                    p2.paragraph_format.left_indent = Cm(0.5)
+                    for r in p2.runs:
+                        r.font.color.rgb = RGBColor(75, 85, 99)
+                        r.font.size = Pt(10)
         else:
             doc.add_paragraph("（无）")
 
@@ -74,11 +80,14 @@ def generate_docx(report: dict, output_dir: str) -> str:
                 text = q.get("text", "")
                 context = q.get("context", "")
                 p = doc.add_paragraph()
+                p.paragraph_format.left_indent = Cm(0.5)
                 run = p.add_run(f'"{text}"')
                 run.italic = True
+                run.font.size = Pt(10)
                 run.font.color.rgb = RGBColor(55, 65, 81)
                 if context:
                     ctx_para = doc.add_paragraph()
+                    ctx_para.paragraph_format.left_indent = Cm(0.5)
                     run = ctx_para.add_run(f"—— {context}")
                     run.font.size = Pt(9)
                     run.font.color.rgb = RGBColor(148, 163, 184)
@@ -96,13 +105,19 @@ def generate_docx(report: dict, output_dir: str) -> str:
                 steps = m.get("steps", [])
                 doc.add_heading(name, level=3)
                 if desc:
-                    doc.add_paragraph(desc)
+                    p_desc = doc.add_paragraph(desc)
+                    for r in p_desc.runs:
+                        r.font.size = Pt(10)
                 if steps:
                     p = doc.add_paragraph()
                     run = p.add_run("操作步骤：")
                     run.bold = True
+                    run.font.size = Pt(10)
                     for k, step in enumerate(steps, 1):
-                        doc.add_paragraph(f"{k}. {step}", style="List Number")
+                        sp = doc.add_paragraph(f"{k}. {step}")
+                        sp.paragraph_format.left_indent = Cm(0.5)
+                        for r in sp.runs:
+                            r.font.size = Pt(10)
         else:
             doc.add_paragraph("（无）")
 
@@ -114,12 +129,16 @@ def generate_docx(report: dict, output_dir: str) -> str:
                 insight_text = item.get("insight", "")
                 action_text = item.get("action", "")
                 p = doc.add_paragraph()
-                run = p.add_run(f"💡 {insight_text}")
-                run.bold = True
-                p2 = doc.add_paragraph()
-                run = p2.add_run("行动建议：")
-                run.bold = True
-                p2.add_run(action_text)
+                run = p.add_run("💡 ")
+                p.add_run(insight_text)
+                if action_text:
+                    p2 = doc.add_paragraph()
+                    run = p2.add_run("行动建议：")
+                    run.bold = True
+                    run.font.size = Pt(10)
+                    run2 = p2.add_run(action_text)
+                    run2.font.size = Pt(10)
+                    p2.paragraph_format.left_indent = Cm(0.5)
                 doc.add_paragraph()
         else:
             doc.add_paragraph("（无）")
