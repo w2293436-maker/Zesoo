@@ -315,7 +315,7 @@ async def get_report(task_id: str):
 
 
 @app.get("/api/export/{task_id}")
-async def export_report(task_id: str):
+async def export_report(task_id: str, request: Request = None):
     """导出 Word 文档"""
     task = tasks.get(task_id)
     if not task:
