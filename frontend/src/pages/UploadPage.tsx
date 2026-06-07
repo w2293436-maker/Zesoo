@@ -5,9 +5,10 @@ import LegalPage from "./LegalPage";
 
 interface UploadPageProps {
   onStart: (file: File) => void;
+  onGoAdmin?: () => void;
 }
 
-export default function UploadPage({ onStart }: UploadPageProps) {
+export default function UploadPage({ onStart, onGoAdmin }: UploadPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -135,7 +136,7 @@ export default function UploadPage({ onStart }: UploadPageProps) {
         支持 PDF · TXT · DOCX 格式，最大 50MB
       </p>
 
-      <Footer onLegalClick={() => setShowLegal(true)} compact />
+      <Footer onLegalClick={() => setShowLegal(true)} onAdminClick={onGoAdmin} compact />
     </div>
   );
 }

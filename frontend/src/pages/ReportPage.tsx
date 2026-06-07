@@ -9,9 +9,10 @@ import LegalPage from "./LegalPage";
 interface ReportPageProps {
   taskId: string;
   onRestart: () => void;
+  onGoAdmin?: () => void;
 }
 
-export default function ReportPage({ taskId, onRestart }: ReportPageProps) {
+export default function ReportPage({ taskId, onRestart, onGoAdmin }: ReportPageProps) {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -177,7 +178,7 @@ export default function ReportPage({ taskId, onRestart }: ReportPageProps) {
           </div>
         )}
       </div>
-      <Footer onLegalClick={() => setShowLegal(true)} compact />
+      <Footer onLegalClick={() => setShowLegal(true)} onAdminClick={onGoAdmin} compact />
     </div>
   );
 }

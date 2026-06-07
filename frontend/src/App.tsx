@@ -3,8 +3,9 @@ import { uploadFile } from "./services/api";
 import UploadPage from "./pages/UploadPage";
 import ProgressPage from "./pages/ProgressPage";
 import ReportPage from "./pages/ReportPage";
+import AdminPage from "./pages/AdminPage";
 
-type Page = "upload" | "progress" | "report";
+type Page = "upload" | "progress" | "report" | "admin";
 
 interface TaskInfo {
   taskId: string;
@@ -18,7 +19,6 @@ export default function App() {
 
   const handleStart = async (file: File) => {
     setError("");
-
     try {
       const result = await uploadFile(file);
       setTaskInfo({
@@ -46,10 +46,17 @@ export default function App() {
     setPage("upload");
   };
 
+  const handleGoAdmin = () => setPage("admin");
+  const handleBackFromAdmin = () => setPage("upload");
+
+  if (page === "admin") {
+    return <AdminPage onBack={handleBackFromAdmin} />;
+  }
+
   if (page === "upload") {
     return (
       <>
-        <UploadPage onStart={handleStart} />
+        <UploadPage onStart={handleStart} onGoAdmin={handleGoAdmin} />
         {error && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-5 py-3 shadow-lg">
             {error}
@@ -81,10 +88,10 @@ export default function App() {
       <ReportPage
         taskId={taskInfo.taskId}
         onRestart={handleRestart}
+        onGoAdmin={handleGoAdmin}
       />
     );
   }
 
-  // 异常状态回退
-  return <UploadPage onStart={handleStart} />;
+  return <UploadPage onStart={handleStart} onGoAdmin={handleGoAdmin} />;
 }

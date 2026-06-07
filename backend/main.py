@@ -22,8 +22,12 @@ from config import UPLOAD_DIR, MAX_FILE_SIZE_MB, ALLOWED_EXTENSIONS
 from parser import parse_file, get_text_stats
 from ai_service import detect_chapters, split_text_by_chapters, analyze_chapter, estimate_tokens
 from export_service import generate_docx
+import stats as stats_module
 
 app = FastAPI(title="择书Zesoo API", version="1.0.0")
+
+# 管理后台密码（通过环境变量设置，默认 admin123）
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 # 静态文件目录（前端构建产物）
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -36,6 +40,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ===== 访问统计中间件 =====
+@app.middleware("http")
+async def track_visits(request, call_next):
+    # 只统计页面访问，跳过 API 和静态资源
+    path = request.url.path
+    if not path.startswith("/api/") and not path.startswith("/assets/") and path.count(".") == 0:
+        stats_module.record_visit()
+    response = await call_next(request)
+    return response
+
 
 # ===== 任务状态管理（内存中，重启丢失） =====
 # 生产环境建议改用 Redis
@@ -58,9 +73,10 @@ async def process_book(task_id: str, file_path: str, filename: str):
         await asyncio.sleep(0.1)
 
         text = await parse_file(file_path)
-        stats = get_text_stats(text)
-        tasks[task_id]["text_stats"] = stats
-        set_progress(task_id, 10, "parse", f"解析完成，共 {stats['chars']} 字符")
+        text_stats = get_text_stats(text)
+        tasks[task_id]["text_stats"] = text_stats
+        stats_module.record_task_start(task_id, filename, text_stats["chars"])
+        set_progress(task_id, 10, "parse", f"解析完成，共 {text_stats['chars']} 字符")
 
         # ---- 阶段 2：AI 识别章节结构 ----
         set_progress(task_id, 15, "detect", "AI 正在识别书籍章节结构...")
@@ -148,6 +164,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["progress"] = 100
         tasks[task_id]["step"] = "done"
         tasks[task_id]["detail"] = "报告生成完成"
+        stats_module.record_task_done(task_id, True, len(final_report.get("chapters", [])))
 
     except Exception as e:
         import traceback
@@ -157,6 +174,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["error"] = str(e)
         tasks[task_id]["step"] = "error"
         tasks[task_id]["detail"] = f"处理失败：{e}"
+        stats_module.record_task_done(task_id, False, error=str(e))
 
 
 # ==================== API 路由 ====================
@@ -201,7 +219,10 @@ async def upload_file(file: UploadFile = File(...)):
         "report": None,
     }
 
-    # 5. 启动后台处理
+    # 5. 记录统计
+    stats_module.record_upload(file.filename)
+
+    # 6. 启动后台处理
     asyncio.create_task(process_book(task_id, file_path, file.filename))
 
     return {
@@ -310,6 +331,25 @@ async def export_report(task_id: str):
 async def health_check():
     """健康检查"""
     return {"status": "ok", "tasks_count": len(tasks)}
+
+
+# ===== 管理后台 API =====
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(password: str = Query(...)):
+    """获取统计数据（需密码）"""
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="密码错误")
+    return stats_module.get_stats()
+
+
+@app.get("/api/admin/recent")
+async def get_recent_tasks(password: str = Query(...)):
+    """获取最近任务列表（需密码）"""
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="密码错误")
+    data = stats_module._load()
+    return data.get("recent_tasks", [])[:30]
 
 
 @app.get("/api/debug/test-pipeline")
