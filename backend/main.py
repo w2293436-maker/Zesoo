@@ -29,6 +29,20 @@ app = FastAPI(title="择书Zesoo API", version="1.0.0")
 # 管理后台密码（通过环境变量设置，默认 admin123）
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
+
+def get_client_info(request) -> tuple[str, str]:
+    """从请求中提取客户端 IP 和 User-Agent"""
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not ip:
+        ip = request.headers.get("x-real-ip", "")
+    if not ip:
+        if request.client:
+            ip = request.client.host
+        else:
+            ip = "unknown"
+    ua = request.headers.get("user-agent", "")
+    return ip, ua
+
 # 静态文件目录（前端构建产物）
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
@@ -47,8 +61,8 @@ async def track_visits(request, call_next):
     # 只统计页面访问，跳过 API 和静态资源
     path = request.url.path
     if not path.startswith("/api/") and not path.startswith("/assets/") and path.count(".") == 0:
-        ua = request.headers.get("user-agent", "")
-        stats_module.record_visit(ua)
+        ip, ua = get_client_info(request)
+        stats_module.record_visit(ip, ua)
     response = await call_next(request)
     return response
 
@@ -68,6 +82,9 @@ def set_progress(task_id: str, progress: int, step: str, detail: str = ""):
 
 async def process_book(task_id: str, file_path: str, filename: str):
     """后台异步处理书籍 — 章节检测 + 逐章精读"""
+    tinfo = tasks.get(task_id, {})
+    ip = tinfo.get("ip", "unknown")
+    ua = tinfo.get("ua", "")
     try:
         # ---- 阶段 1：解析文件 ----
         set_progress(task_id, 5, "parse", "正在解析文件...")
@@ -76,7 +93,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         text = await parse_file(file_path)
         text_stats = get_text_stats(text)
         tasks[task_id]["text_stats"] = text_stats
-        stats_module.record_task_start(task_id, filename, text_stats["chars"])
+        stats_module.record_task_start(ip, ua, task_id, filename, text_stats["chars"])
         set_progress(task_id, 10, "parse", f"解析完成，共 {text_stats['chars']} 字符")
         stats_module.record_phase_time(task_id, "parse")
 
@@ -168,7 +185,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["progress"] = 100
         tasks[task_id]["step"] = "done"
         tasks[task_id]["detail"] = "报告生成完成"
-        stats_module.record_task_done(task_id, True, len(final_report.get("chapters", [])))
+        stats_module.record_task_done(ip, ua, task_id, True, len(final_report.get("chapters", [])))
 
     except Exception as e:
         import traceback
@@ -178,7 +195,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["error"] = str(e)
         tasks[task_id]["step"] = "error"
         tasks[task_id]["detail"] = f"处理失败：{e}"
-        stats_module.record_task_done(task_id, False, error=str(e))
+        stats_module.record_task_done(ip, ua, task_id, False, error=str(e))
 
 
 # ==================== API 路由 ====================
@@ -212,7 +229,10 @@ async def upload_file(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # 4. 创建任务
+    # 4. 获取客户端信息
+    ip, ua = get_client_info(request)
+
+    # 5. 创建任务
     tasks[task_id] = {
         "status": "uploaded",
         "progress": 0,
@@ -221,12 +241,14 @@ async def upload_file(file: UploadFile = File(...)):
         "filename": file.filename,
         "file_path": file_path,
         "report": None,
+        "ip": ip,
+        "ua": ua,
     }
 
-    # 5. 记录统计
-    stats_module.record_upload(file.filename)
+    # 6. 记录统计
+    stats_module.record_upload(ip, ua, file.filename)
 
-    # 6. 启动后台处理
+    # 7. 启动后台处理
     asyncio.create_task(process_book(task_id, file_path, file.filename))
 
     return {
@@ -320,7 +342,8 @@ async def export_report(task_id: str):
 
         docx_path = generate_docx(task["report"], export_dir)
         tasks[task_id]["export_path"] = docx_path
-        stats_module.record_export()
+        ip, ua = get_client_info(request)
+        stats_module.record_export(ip, ua)
 
         filename = os.path.basename(docx_path)
         return FileResponse(
@@ -355,6 +378,17 @@ async def get_recent_tasks(password: str = Query(...)):
         raise HTTPException(status_code=403, detail="密码错误")
     data = stats_module._load()
     return data.get("recent_tasks", [])[:30]
+
+
+@app.get("/api/admin/user/{fingerprint}")
+async def get_user_detail(fingerprint: str, password: str = Query(...)):
+    """获取单个用户的详细数据（需密码）"""
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="密码错误")
+    detail = stats_module.get_user_detail(fingerprint)
+    if not detail:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return detail
 
 
 @app.get("/api/debug/test-pipeline")

@@ -6,7 +6,18 @@ interface Overview {
   total_visits: number; total_uploads: number; completed: number; failed: number;
   success_rate: number; total_exports: number; export_rate: number;
   total_chars: number; total_tokens: number; total_time_hours: number;
-  avg_duration_seconds: number; ocr_pages: number; cost_est: number;
+  avg_duration_seconds: number; ocr_pages: number; cost_est: number; unique_users: number;
+}
+
+interface UserSummary {
+  fingerprint: string; first_seen: number; last_seen: number; visits: number;
+  uploads: number; completed: number; failed: number; exports: number;
+  tokens_used: number; device: string; ip_masked: string;
+}
+
+interface UserDetail extends UserSummary {
+  chars_processed: number; total_time_seconds: number;
+  tasks: TaskEntry[];
 }
 
 interface Today { visits: number; uploads: number; completed: number; tokens: number; exports: number; fails: number; }
@@ -18,6 +29,7 @@ interface StatsData {
   size_distribution: Record<string, number>; file_types: Record<string, number>;
   devices: Record<string, number>; failure_reasons: Record<string, number>;
   phase_avgs: Record<string, number>; recent_tasks: TaskEntry[];
+  users: UserSummary[];
 }
 
 interface TaskEntry {
@@ -32,18 +44,28 @@ export default function AdminPage({ onBack }: AdminPageProps) {
   const [tasks, setTasks] = useState<TaskEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
+  const [pwd, setPwd] = useState("");
 
-  const loadData = async (pwd: string) => {
+  const loadData = async (password: string) => {
+    setPwd(password);
     setLoading(true); setError("");
     try {
       const [sr, tr] = await Promise.all([
-        fetch(`/api/admin/stats?password=${encodeURIComponent(pwd)}`),
-        fetch(`/api/admin/recent?password=${encodeURIComponent(pwd)}`),
+        fetch(`/api/admin/stats?password=${encodeURIComponent(password)}`),
+        fetch(`/api/admin/recent?password=${encodeURIComponent(password)}`),
       ]);
       if (sr.status === 403) { setError("密码错误"); setLoading(false); return; }
       setStats(await sr.json()); setTasks(await tr.json()); setAuthed(true);
     } catch { setError("加载失败"); }
     setLoading(false);
+  };
+
+  const fetchUserDetail = async (fp: string) => {
+    try {
+      const r = await fetch(`/api/admin/user/${fp}?password=${encodeURIComponent(pwd)}`);
+      if (r.ok) setUserDetail(await r.json());
+    } catch { /* ignore */ }
   };
 
   if (!authed) {
@@ -84,6 +106,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <Card label="页面访问" v={o.total_visits.toLocaleString()} u="次" c="blue" />
               <Card label="书籍分析" v={o.completed.toLocaleString()} u="本" c="green" />
+              <Card label="独立访客" v={o.unique_users.toLocaleString()} u="人" c="indigo" />
               <Card label="导出下载" v={o.total_exports.toLocaleString()} u="次" c="indigo" />
               <Card label="成功率" v={o.success_rate.toString()} u="%" c={o.success_rate > 80 ? "green" : "amber"} />
               <Card label="导出率" v={o.export_rate.toString()} u="%" c={o.export_rate > 50 ? "green" : "amber"} />
@@ -129,6 +152,16 @@ export default function AdminPage({ onBack }: AdminPageProps) {
 
         {/* 最近任务 */}
         <TaskTable tasks={tasks} />
+
+        {/* 用户列表 */}
+        {stats?.users && stats.users.length > 0 && (
+          <UserTable users={stats.users} onUserClick={fetchUserDetail} />
+        )}
+
+        {/* 用户详情弹窗 */}
+        {userDetail && (
+          <UserDetailModal user={userDetail} onClose={() => setUserDetail(null)} />
+        )}
       </div>
     </div>
   );
@@ -306,4 +339,108 @@ function fmtTokens(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
   return n.toString();
+}
+
+function fmtTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString("zh-CN") + " " + d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function UserTable({ users, onUserClick }: { users: UserSummary[]; onUserClick: (fp: string) => void }) {
+  const deviceIcons: Record<string, string> = { pc: "💻", mobile: "📱", tablet: "📟" };
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100">
+        <h2 className="text-sm font-bold text-gray-700">👥 独立访客 ({users.length}人)</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs sm:text-sm">
+          <thead className="bg-gray-50 text-gray-500">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">来源</th>
+              <th className="text-center px-2 py-2 font-medium">设备</th>
+              <th className="text-right px-2 py-2 font-medium">访问</th>
+              <th className="text-right px-2 py-2 font-medium">上传</th>
+              <th className="text-right px-2 py-2 font-medium">完成</th>
+              <th className="text-right px-2 py-2 font-medium">导出</th>
+              <th className="text-right px-2 py-2 font-medium hidden sm:table-cell">Token</th>
+              <th className="text-right px-3 py-2 font-medium hidden sm:table-cell">最近活跃</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {users.map((u) => (
+              <tr key={u.fingerprint} onClick={() => onUserClick(u.fingerprint)}
+                className="hover:bg-blue-50 cursor-pointer transition-colors">
+                <td className="px-3 py-2 text-gray-600 font-mono text-xs">{u.ip_masked}</td>
+                <td className="px-2 py-2 text-center">{deviceIcons[u.device] || "💻"}</td>
+                <td className="px-2 py-2 text-right text-gray-700">{u.visits}</td>
+                <td className="px-2 py-2 text-right text-gray-700">{u.uploads}</td>
+                <td className="px-2 py-2 text-right text-green-600">{u.completed || "-"}</td>
+                <td className="px-2 py-2 text-right text-gray-700">{u.exports || "-"}</td>
+                <td className="px-2 py-2 text-right text-gray-500 hidden sm:table-cell">{fmtTokens(u.tokens_used)}</td>
+                <td className="px-3 py-2 text-right text-gray-400 hidden sm:table-cell text-xs">{fmtTime(u.last_seen)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => void }) {
+  const tasks = user.tasks || [];
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+          <h2 className="text-base font-bold text-gray-800">访客详情</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <MiniCard l="访问次数" v={user.visits} />
+            <MiniCard l="上传文件" v={user.uploads} />
+            <MiniCard l="完成分析" v={user.completed} c="green" />
+            <MiniCard l="失败" v={user.failed} c="red" />
+            <MiniCard l="导出下载" v={user.exports} />
+            <MiniCard l="Token" v={fmtTokens(user.tokens_used)} />
+          </div>
+          <div className="text-xs text-gray-400 space-y-1">
+            <p>IP: {user.ip_masked} · 设备: {user.device}</p>
+            <p>首次访问: {fmtTime(user.first_seen)}</p>
+            <p>最近活跃: {fmtTime(user.last_seen)}</p>
+            {user.total_time_seconds > 0 && <p>累计用时: {(user.total_time_seconds / 60).toFixed(1)} 分钟</p>}
+            {user.chars_processed > 0 && <p>处理字数: {(user.chars_processed / 10000).toFixed(1)} 万字</p>}
+          </div>
+          {tasks.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-700 mb-2">任务记录</h3>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {tasks.map((t) => (
+                  <div key={t.task_id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg bg-gray-50">
+                    <span className="text-gray-600 truncate max-w-[180px]">{t.filename}</span>
+                    <span className="text-gray-400">{(t.chars / 1000).toFixed(0)}k字</span>
+                    <span>{t.status === "completed" ? "✅" : t.status === "failed" ? "❌" : "⏳"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniCard({ l, v, c }: { l: string; v: string | number; c?: string }) {
+  const cc = c === "green" ? "text-green-600" : c === "red" ? "text-red-500" : "text-gray-700";
+  return (
+    <div className="bg-gray-50 rounded-xl p-3 text-center">
+      <div className="text-xs text-gray-400">{l}</div>
+      <div className={`text-lg font-bold ${cc}`}>{v}</div>
+    </div>
+  );
 }
