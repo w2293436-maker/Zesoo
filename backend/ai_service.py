@@ -62,8 +62,8 @@ CHAPTER_DETECT_PROMPT = """你是一位专业的书籍结构分析专家。请�
 
 async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
     """AI 识别书籍章节结构"""
-    # 最多发前 30000 字符用于章节检测（足够覆盖目录+前几章）
-    scan_text = text[:30000] if len(text) > 30000 else text
+    # 发前 60000 字符用于章节检测（长书也能覆盖更多章节）
+    scan_text = text[:60000] if len(text) > 60000 else text
 
     response = await client.post(
         f"{DEEPSEEK_BASE_URL}/chat/completions",
@@ -79,7 +79,7 @@ async def detect_chapters(client: httpx.AsyncClient, text: str) -> dict:
                     f"（注意：全书共 {len(text)} 字符，以上仅为前 {len(scan_text)} 字符。请尽量识别所有可能的章节。）"},
             ],
             "temperature": 0.1,
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "response_format": {"type": "json_object"},
         },
         timeout=120.0,
