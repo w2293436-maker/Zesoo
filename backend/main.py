@@ -211,7 +211,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
 async def upload_file(file: UploadFile = File(...)):
     """上传书籍文件，返回任务 ID"""
     try:
-        return await _do_upload(file)
+        return await _do_upload(file, request)
     except HTTPException:
         raise
     except Exception as e:
@@ -220,7 +220,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"上传失败: {e}")
 
 
-async def _do_upload(file: UploadFile):
+async def _do_upload(file: UploadFile, request):
     # 1. 检查文件扩展名
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
