@@ -142,7 +142,7 @@ export default function ReportPage({ taskId, onRestart, onGoAdmin }: ReportPageP
       <div className="flex flex-1 overflow-hidden relative">
         {/* 侧边栏：桌面端始终显示，移动端弹窗 */}
         <div className={`
-          sm:relative sm:block
+          sm:hidden
           ${sidebarOpen ? "fixed inset-0 z-30 bg-black/30" : "hidden"}
         `}
           onClick={() => setSidebarOpen(false)}
