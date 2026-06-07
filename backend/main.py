@@ -247,6 +247,9 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
 
     asyncio.create_task(process_book(task_id, file_path, file.filename))
     return {"task_id": task_id, "filename": file.filename, "size_mb": round(size_mb, 2), "status": "uploaded"}
+
+
+@app.get("/api/progress/{task_id}")
 async def get_progress(task_id: str):
     """SSE 实时进度推送"""
     if task_id not in tasks:
@@ -367,11 +370,16 @@ async def debug_test_stats():
 # ===== 管理后台 API =====
 
 @app.get("/api/admin/stats")
-async def get_admin_stats(password: str = Query(...)):
+async def get_admin_stats(password: str = Query("")):
     """获取统计数据（需密码）"""
     if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="密码错误")
-    return stats_module.get_stats()
+    try:
+        return stats_module.get_stats()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Stats error: {e}")
 
 
 @app.get("/api/admin/recent")
