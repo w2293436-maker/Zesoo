@@ -95,6 +95,10 @@ function DisclaimerContent() {
       <Section title="五、服务可用性">
         <p>本工具保留随时修改、暂停或终止服务的权利，无需事先通知。因系统维护、网络故障、第三方服务中断等原因导致的服务不可用，<strong>本工具不承担任何责任</strong>。</p>
       </Section>
+
+      <Section title="六、联系方式">
+        <p>如对本工具或本声明有任何疑问、建议或侵权投诉，请联系：<strong>zesoo@163.com</strong>，我们会在收到邮件后及时处理。</p>
+      </Section>
     </div>
   );
 }
