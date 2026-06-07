@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -208,19 +208,8 @@ async def process_book(task_id: str, file_path: str, filename: str):
 # ==================== API 路由 ====================
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), request: Request = None):
     """上传书籍文件，返回任务 ID"""
-    import traceback
-    try:
-        return await _upload_impl(file, request)
-    except HTTPException:
-        raise
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
-
-
-async def _upload_impl(file: UploadFile, request):
     # 1. 检查文件扩展名
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -229,14 +218,11 @@ async def _upload_impl(file: UploadFile, request):
             detail=f"不支持的文件格式：{ext}。支持：{', '.join(ALLOWED_EXTENSIONS)}",
         )
 
-    # 2. 保存文件
     task_id = uuid.uuid4().hex[:12]
     safe_filename = f"{task_id}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
     content = await file.read()
-
-    # 3. 检查文件大小
     size_mb = len(content) / (1024 * 1024)
     if size_mb > MAX_FILE_SIZE_MB:
         raise HTTPException(
@@ -247,40 +233,20 @@ async def _upload_impl(file: UploadFile, request):
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # 4. 获取客户端信息
     ip, ua = get_client_info(request)
-
-    # 5. 创建任务
     tasks[task_id] = {
-        "status": "uploaded",
-        "progress": 0,
-        "step": "upload",
-        "detail": "文件已上传",
-        "filename": file.filename,
-        "file_path": file_path,
-        "report": None,
-        "ip": ip,
-        "ua": ua,
+        "status": "uploaded", "progress": 0, "step": "upload",
+        "detail": "文件已上传", "filename": file.filename,
+        "file_path": file_path, "report": None, "ip": ip, "ua": ua,
     }
 
-    # 6. 记录统计（失败不影响上传）
     try:
         stats_module.record_upload(ip, ua, file.filename)
-    except Exception as e:
-        print(f"[STATS] record_upload error: {e}")
+    except Exception:
+        pass
 
-    # 7. 启动后台处理
     asyncio.create_task(process_book(task_id, file_path, file.filename))
-
-    return {
-        "task_id": task_id,
-        "filename": file.filename,
-        "size_mb": round(size_mb, 2),
-        "status": "uploaded",
-    }
-
-
-@app.get("/api/progress/{task_id}")
+    return {"task_id": task_id, "filename": file.filename, "size_mb": round(size_mb, 2), "status": "uploaded"}
 async def get_progress(task_id: str):
     """SSE 实时进度推送"""
     if task_id not in tasks:
