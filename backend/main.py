@@ -47,7 +47,8 @@ async def track_visits(request, call_next):
     # 只统计页面访问，跳过 API 和静态资源
     path = request.url.path
     if not path.startswith("/api/") and not path.startswith("/assets/") and path.count(".") == 0:
-        stats_module.record_visit()
+        ua = request.headers.get("user-agent", "")
+        stats_module.record_visit(ua)
     response = await call_next(request)
     return response
 
@@ -77,6 +78,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
         tasks[task_id]["text_stats"] = text_stats
         stats_module.record_task_start(task_id, filename, text_stats["chars"])
         set_progress(task_id, 10, "parse", f"解析完成，共 {text_stats['chars']} 字符")
+        stats_module.record_phase_time(task_id, "parse")
 
         # ---- 阶段 2：AI 识别章节结构 ----
         set_progress(task_id, 15, "detect", "AI 正在识别书籍章节结构...")
@@ -94,6 +96,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
 
         tasks[task_id]["total_chapters"] = len(raw_chapters)
         set_progress(task_id, 20, "split", f"识别到 {len(raw_chapters)} 个章节，正在切分...")
+        stats_module.record_phase_time(task_id, "detect")
 
         # ---- 阶段 3：按章节切分文本 ----
         chapter_blocks = split_text_by_chapters(text, raw_chapters)
@@ -153,6 +156,7 @@ async def process_book(task_id: str, file_path: str, filename: str):
 
         # ---- 阶段 5：组装最终报告 ----
         set_progress(task_id, 85, "done", "正在组装报告...")
+        stats_module.record_phase_time(task_id, "analyze")
 
         final_report = {
             "book_title": book_title,
@@ -316,6 +320,7 @@ async def export_report(task_id: str):
 
         docx_path = generate_docx(task["report"], export_dir)
         tasks[task_id]["export_path"] = docx_path
+        stats_module.record_export()
 
         filename = os.path.basename(docx_path)
         return FileResponse(
