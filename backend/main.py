@@ -371,6 +371,22 @@ async def health_check():
     return {"status": "ok", "tasks_count": len(tasks)}
 
 
+@app.post("/api/debug/test-stats")
+async def debug_test_stats():
+    """测试 stats 是否正常"""
+    import traceback
+    try:
+        import stats as sm
+        sm.record_visit("1.2.3.4", "test-ua")
+        sm.record_upload("1.2.3.4", "test-ua", "test.pdf")
+        sm.record_task_start("1.2.3.4", "test-ua", "debug123", "test.pdf", 5000)
+        sm.record_task_done("1.2.3.4", "test-ua", "debug123", True, chapters=3)
+        d = sm._load()
+        return {"ok": True, "uploads": d["total_uploads"], "users": len(d["users"])}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "traceback": traceback.format_exc()}
+
+
 # ===== 管理后台 API =====
 
 @app.get("/api/admin/stats")
